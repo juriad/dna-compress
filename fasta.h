@@ -29,6 +29,7 @@ void fasta_put_name(FASTA fasta, char * name);
 
 int fasta_get_char(FASTA fasta);
 void fasta_put_char(FASTA fasta, int c);
+int fasta_has_sequence(FASTA fasta);
 
 size_t fasta_reserve_space(FASTA fasta, int size);
 void fasta_read_space(FASTA fasta, size_t position, int size,

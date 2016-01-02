@@ -117,34 +117,38 @@ int fasta_seek_name(FASTA fasta, int delta) {
 			// we have found another name
 			// do not skip through the sequence
 			fseek(fasta->file, -1, SEEK_CUR);
-		} else if (type == NAME_START) {
-			// go through an uncompressed sequence until we find
-			// either an end or a new name
-			do {
-				c = fgetc(fasta->file);
-			} while (c != NAME_START && c != NAME_START_COMPRESSED && c != EOF);
-			if (c != EOF) {
-				fseek(fasta->file, -1, SEEK_CUR);
-			}
-		} else if (type == NAME_START_COMPRESSED) {
-			// simply skip the promised number of bytes
+		} else if (fasta_has_sequence(fasta)) {
+			if (type == NAME_START) {
+				// go through an uncompressed sequence until we find
+				// either an end or a new name
+				do {
+					c = fgetc(fasta->file);
+				} while (c != NAME_START && c != NAME_START_COMPRESSED
+						&& c != EOF);
+				if (c != EOF) {
+					fseek(fasta->file, -1, SEEK_CUR);
+				}
+			} else if (type == NAME_START_COMPRESSED) {
+				// simply skip the promised number of bytes
 
-			size_t pos = ftell(fasta->file);
-			unsigned char space[8];
-			fasta_read_space(fasta, pos - 1, 8, space);
+				size_t pos = ftell(fasta->file);
+				unsigned char space[8];
+				fasta_read_space(fasta, pos - 1, 8, space);
 
-			size_t len = 8 + convert_from_data(8, space) / 8; // data
-			size_t skip = len - 1 // + 1 because we have read one char (c)
-					+ (len / LINE_WIDTH + (len % LINE_WIDTH == 0 ? 0 : 1) - 1)
-							* fasta->curNl;
-			fseek(fasta->file, skip, SEEK_CUR);
+				size_t len = convert_from_data(8, space) / 8; // data
+				size_t skip = len - 1 // + 1 because we have read one char (c)
+						+ (len / LINE_WIDTH + (len % LINE_WIDTH == 0 ? 0 : 1)
+								- 1) * fasta->curNl;
+				fseek(fasta->file, skip, SEEK_CUR);
 
-			// and now we may iterate until we find name start or an end
-			do {
-				c = fgetc(fasta->file);
-			} while (c != NAME_START && c != NAME_START_COMPRESSED && c != EOF);
-			if (c != EOF) {
-				fseek(fasta->file, -1, SEEK_CUR);
+				// and now we may iterate until we find name start or an end
+				do {
+					c = fgetc(fasta->file);
+				} while (c != NAME_START && c != NAME_START_COMPRESSED
+						&& c != EOF);
+				if (c != EOF) {
+					fseek(fasta->file, -1, SEEK_CUR);
+				}
 			}
 		}
 
@@ -156,8 +160,9 @@ int fasta_seek_name(FASTA fasta, int delta) {
 
 		fasta->curNamePos = ftell(fasta->file);
 		fasta->curSeqType = c;
-		delta--;
 		fasta->curSeq++;
+		fasta->curSeqSize = 0;
+		delta--;
 	}
 
 	// find start of the sequence (which is one character past newline)
@@ -184,25 +189,59 @@ void fasta_put_name(FASTA fasta, char * name) {
 	fasta->curSeqPos = ftell(fasta->file);
 }
 
+int fasta_has_sequence(FASTA fasta) {
+	if (fasta->curChar > 0) {
+		return 1;
+	}
+
+	int ret = 1;
+	size_t pos = ftell(fasta->file);
+
+	int c;
+	if (fasta->curSeqType == NAME_START) {
+		do {
+			c = fgetc(fasta->file);
+		} while (c == EOL || c == EOL2);
+		if (c == NAME_START || c == NAME_START_COMPRESSED || c == EOF) {
+			ret = 0;
+		}
+	} else {
+		for (int i = 0; i < 7; i++) {
+			c = fgetc(fasta->file);
+			if (c == NAME_START || c == NAME_START_COMPRESSED || c == EOF) {
+				ret = 0;
+				break;
+			}
+		}
+	}
+
+	fseek(fasta->file, pos, SEEK_SET);
+	return ret;
+}
+
 int fasta_get_char(FASTA fasta) {
-	int cc;
+	int c;
 	int len = 0;
 	if (fasta->curSeqType == NAME_START) {
 		do {
-			cc = fgetc(fasta->file);
-		} while (cc == EOL || cc == EOL2);
+			c = fgetc(fasta->file);
+		} while (c == EOL || c == EOL2);
 
-		if (cc == NAME_START || cc == NAME_START_COMPRESSED || cc == EOF) {
-			if (cc != EOF) {
+		if (c == NAME_START || c == NAME_START_COMPRESSED || c == EOF) {
+			if (c != EOF) {
 				fseek(fasta->file, -1, SEEK_CUR);
 			}
 			return -1;
 		}
+		fasta->curChar++;
 	} else {
 		size_t pos = ftell(fasta->file);
 		if (pos == fasta->curSeqPos) {
-			cc = fgetc(fasta->file);
-			if (cc == NAME_START || cc == NAME_START_COMPRESSED || cc == EOF) {
+			c = fgetc(fasta->file);
+			if (c != EOF) {
+				fseek(fasta->file, -1, SEEK_CUR);
+			}
+			if (c == NAME_START || c == NAME_START_COMPRESSED || c == EOF) {
 				return -1;
 			}
 
@@ -210,8 +249,8 @@ int fasta_get_char(FASTA fasta) {
 			fasta_read_space(fasta, pos, 8, space);
 
 			fasta->curSeqSize = convert_from_data(8, space);
-			// we have already read one
-			fseek(fasta->file, 7, SEEK_CUR);
+			fseek(fasta->file, 8, SEEK_CUR);
+			fasta->curChar += 8;
 			pos += 8;
 		}
 		if (fasta->curChar * 8 >= fasta->curSeqSize) {
@@ -219,7 +258,7 @@ int fasta_get_char(FASTA fasta) {
 		}
 		int mod;
 		do {
-			cc = fgetc(fasta->file);
+			c = fgetc(fasta->file);
 			mod = (pos - fasta->curSeqPos) % (LINE_WIDTH + fasta->curNl);
 			pos++;
 		} while (
@@ -235,7 +274,7 @@ int fasta_get_char(FASTA fasta) {
 		len = fasta->curSeqSize - fasta->curChar * 8 + 8;
 	}
 
-	return cc | (len << 8);
+	return c | (len << 8);
 }
 
 void fasta_put_char(FASTA fasta, int c) {
@@ -262,6 +301,7 @@ size_t fasta_reserve_space(FASTA fasta, int size) {
 		for (int i = 0; i < size; i++) {
 			fputc(255, fasta->file);
 		}
+		fasta->curSeqSize += size * 8;
 	} else {
 		fseek(fasta->file, size, SEEK_CUR);
 	}

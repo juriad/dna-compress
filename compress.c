@@ -23,22 +23,28 @@ void encode(char * in, char * out) {
 		fasta_put_name(f2, name);
 		printf("%s\n", name);
 
-		BINARIZER b1 = binarizer_open(f1, acgt);
-		BINARIZER b2 = binarizer_open(f2, ident);
+		if (fasta_has_sequence(f1)) {
 
-		int c;
-		while (1) {
-			c = binarizer_get_bit(b1);
-			if (c == -1) {
-				break;
+			BINARIZER b1 = binarizer_open(f1, acgt);
+			BINARIZER b2 = binarizer_open(f2, ident);
+
+			int c;
+			while (1) {
+				c = binarizer_get_bit(b1);
+				if (c == -1) {
+					break;
+				}
+				//printf("bit %d, pos %d\n", c & 1, (c >> 8) & 255);
+				binarizer_put_bit(b2, c);
 			}
-			//printf("bit %d, pos %d\n", c & 1, (c >> 8) & 255);
-			binarizer_put_bit(b2, c);
-		}
-		printf("\n");
+			printf("\n");
 
-		binarizer_close(b1);
-		binarizer_close(b2);
+			binarizer_close(b1);
+			binarizer_close(b2);
+
+		} else {
+			printf("empty\n");
+		}
 
 		free(name);
 
@@ -71,22 +77,28 @@ void decode(char * in, char * out) {
 		fasta_put_name(f2, name);
 		printf("%s\n", name);
 
-		BINARIZER b1 = binarizer_open(f1, ident);
-		BINARIZER b2 = binarizer_open(f2, a0123);
+		if (fasta_has_sequence(f1)) {
 
-		int c;
-		while (1) {
-			c = binarizer_get_bit(b1);
-			if (c == -1) {
-				break;
+			BINARIZER b1 = binarizer_open(f1, ident);
+			BINARIZER b2 = binarizer_open(f2, a0123);
+
+			int c;
+			while (1) {
+				c = binarizer_get_bit(b1);
+				if (c == -1) {
+					break;
+				}
+				//printf("bit %d, pos %d\n", c & 1, (c >> 8) & 255);
+				binarizer_put_bit(b2, c);
 			}
-			//printf("bit %d, pos %d\n", c & 1, (c >> 8) & 255);
-			binarizer_put_bit(b2, c);
-		}
-		printf("\n");
+			printf("\n");
 
-		binarizer_close(b1);
-		binarizer_close(b2);
+			binarizer_close(b1);
+			binarizer_close(b2);
+
+		} else {
+			printf("empty\n");
+		}
 
 		free(name);
 

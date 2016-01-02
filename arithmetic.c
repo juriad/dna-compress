@@ -79,6 +79,26 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 
 int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 	if (arithmetic->symbols == 0) {
+		if (arithmetic->position > 0) {
+			// position can never be zero because of how fasta is organized
+			// this happens when we are past the end
+			return -1;
+		}
+
+		FASTA fasta = arithmetic->binarizer->fasta;
+		if (!fasta_has_sequence(fasta)) {
+			return -1;
+		}
+
+		arithmetic->position = fasta_reserve_space(fasta, 8);
+		unsigned char space[8];
+		fasta_read_space(fasta, arithmetic->position, 8, space);
+		arithmetic->symbols = convert_from_data(8, space);
+		if (arithmetic->symbols == 0) {
+			// weird, but may happen
+			return -1;
+		}
+
 		// read bits into lower
 		for (int i = 0; i < sizeof(arithmetic->lower); i++) {
 			int bit = binarizer_get_bit(arithmetic->binarizer);
