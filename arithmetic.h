@@ -7,8 +7,8 @@
 
 struct arithmetic {
 	BINARIZER binarizer;
+	size_t position;
 	uint64_t symbols;
-	int rwMode;
 
 	struct {
 		union {

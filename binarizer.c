@@ -39,12 +39,11 @@ BINARIZER binarizer_open(FASTA fasta, BINARIZER_ALPHABET alphabet) {
 	BINARIZER binarizer = calloc(1, sizeof(*binarizer));
 	binarizer->alphabet = alphabet;
 	binarizer->fasta = fasta;
-	binarizer->rwMode = fasta->rwMode;
 	return binarizer;
 }
 
 void binarizer_close(BINARIZER binarizer) {
-	if (binarizer->position != 0 && binarizer->rwMode == WRITING) {
+	if (binarizer->position != 0 && binarizer->fasta->rwMode == WRITING) {
 		fasta_put_char(binarizer->fasta,
 				binarizer->alphabet.bits[binarizer->bits]
 						| binarizer->position << 8);

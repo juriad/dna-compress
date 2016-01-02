@@ -31,7 +31,9 @@ int fasta_get_char(FASTA fasta);
 void fasta_put_char(FASTA fasta, int c);
 
 size_t fasta_reserve_space(FASTA fasta, int size);
-void fasta_read_space(FASTA fasta, int size);
-void fasta_write_space(FASTA fasta, int size, char * space);
+void fasta_read_space(FASTA fasta, size_t position, int size,
+		unsigned char * space);
+void fasta_write_space(FASTA fasta, size_t position, int size,
+		unsigned char * space);
 
 #endif /* FASTA_H_ */

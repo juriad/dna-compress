@@ -23,28 +23,14 @@ FASTA fasta_open(char * filename, int rwMode) {
 	return fasta;
 }
 
-size_t read_size_t(FASTA fasta) {
-	uint64_t size = 0;
-	for (int i = 7; i >= 0; i--) {
-		size += ((u_int64_t) fgetc(fasta->file)) << (i * 8);
-	}
-	return size;
-}
-
-void write_size_t(FASTA fasta, size_t size) {
-	for (int i = 7; i >= 0; i--) {
-		fputc((((uint64_t) size) >> (i * 8)) & 255, fasta->file);
-	}
-}
-
 void close_sequence(FASTA fasta) {
 	if (fasta->rwMode == WRITING) {
 		if (fasta->curSeqSize > 0) {
 			// write size
 			if (fasta->curSeqType == NAME_START_COMPRESSED) {
-				fseek(fasta->file, fasta->curSeqPos, SEEK_SET);
-				write_size_t(fasta, fasta->curSeqSize);
-				fseek(fasta->file, 0, SEEK_END);
+				unsigned char space[8];
+				convert_to_data(fasta->curSeqSize, 8, space);
+				fasta_write_space(fasta, fasta->curSeqPos, 8, space);
 			}
 
 			// append newline
@@ -143,11 +129,12 @@ int fasta_seek_name(FASTA fasta, int delta) {
 		} else if (type == NAME_START_COMPRESSED) {
 			// simply skip the promised number of bytes
 
-			// size of each newline
-			fseek(fasta->file, -1, SEEK_CUR);
+			size_t pos = ftell(fasta->file);
+			unsigned char space[8];
+			fasta_read_space(fasta, pos - 1, 8, space);
 
-			size_t len = 8 + read_size_t(fasta) / 8; // data
-			size_t skip = len - 8
+			size_t len = 8 + convert_from_data(8, space) / 8; // data
+			size_t skip = len - 1 // + 1 because we have read one char (c)
 					+ (len / LINE_WIDTH + (len % LINE_WIDTH == 0 ? 0 : 1) - 1)
 							* fasta->curNl;
 			fseek(fasta->file, skip, SEEK_CUR);
@@ -215,13 +202,16 @@ int fasta_get_char(FASTA fasta) {
 		size_t pos = ftell(fasta->file);
 		if (pos == fasta->curSeqPos) {
 			cc = fgetc(fasta->file);
-			if (cc != EOF) {
-				fseek(fasta->file, -1, SEEK_CUR);
-			}
 			if (cc == NAME_START || cc == NAME_START_COMPRESSED || cc == EOF) {
 				return -1;
 			}
-			fasta->curSeqSize = read_size_t(fasta);
+
+			unsigned char space[8];
+			fasta_read_space(fasta, pos, 8, space);
+
+			fasta->curSeqSize = convert_from_data(8, space);
+			// we have already read one
+			fseek(fasta->file, 7, SEEK_CUR);
 			pos += 8;
 		}
 		if (fasta->curChar * 8 >= fasta->curSeqSize) {
@@ -250,9 +240,7 @@ int fasta_get_char(FASTA fasta) {
 
 void fasta_put_char(FASTA fasta, int c) {
 	if (fasta->curSeqType == NAME_START_COMPRESSED && fasta->curSeqSize == 0) {
-		for (int i = 0; i < 8; i++) {
-			fputc(255, fasta->file);
-		}
+		fasta_reserve_space(fasta, 8);
 	}
 
 	size_t pos = ftell(fasta->file);
@@ -266,4 +254,36 @@ void fasta_put_char(FASTA fasta, int c) {
 		len = 8;
 	}
 	fasta->curSeqSize += len;
+}
+
+size_t fasta_reserve_space(FASTA fasta, int size) {
+	size_t pos = ftell(fasta->file);
+	if (fasta->rwMode == WRITING) {
+		for (int i = 0; i < size; i++) {
+			fputc(255, fasta->file);
+		}
+	} else {
+		fseek(fasta->file, size, SEEK_CUR);
+	}
+	return pos;
+}
+
+void fasta_read_space(FASTA fasta, size_t position, int size,
+		unsigned char * space) {
+	size_t pos = ftell(fasta->file);
+	fseek(fasta->file, position, SEEK_SET);
+	for (int i = 0; i < size; i++) {
+		space[i] = fgetc(fasta->file);
+	}
+	fseek(fasta->file, pos, SEEK_SET);
+}
+
+void fasta_write_space(FASTA fasta, size_t position, int size,
+		unsigned char * space) {
+	size_t pos = ftell(fasta->file);
+	fseek(fasta->file, position, SEEK_SET);
+	for (int i = 0; i < size; i++) {
+		fputc(space[i], fasta->file);
+	}
+	fseek(fasta->file, pos, SEEK_SET);
 }

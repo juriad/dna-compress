@@ -7,7 +7,6 @@
 ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	ARITHMETIC arithmetic = calloc(1, sizeof(*arithmetic));
 	arithmetic->binarizer = binarizer;
-	arithmetic->rwMode = binarizer->rwMode;
 
 	arithmetic->lower = 0;
 	arithmetic->range = arithmetic->b1;
@@ -20,7 +19,14 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 }
 
 void arithmetic_close(ARITHMETIC arithmetic) {
-	if (arithmetic->rwMode == WRITING) {
+	if (arithmetic->symbols > 0) {
+		unsigned char space[8];
+		convert_to_data(arithmetic->symbols, 8, space);
+		fasta_write_space(arithmetic->binarizer->fasta, arithmetic->position, 8,
+				space);
+	}
+
+	if (arithmetic->binarizer->fasta->rwMode == WRITING) {
 		// output pending bits from lower
 		for (int i = 0; arithmetic->pending > 0; arithmetic->pending--, i++) {
 			int shift = sizeof(arithmetic->lower) - i - 1;
@@ -39,6 +45,11 @@ void output(ARITHMETIC arithmetic, int bit) {
 }
 
 void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
+	if (arithmetic->symbols == 0) {
+		arithmetic->position = fasta_reserve_space(arithmetic->binarizer->fasta,
+				8);
+	}
+
 	bit &= 1;
 	double r = arithmetic->range
 			/ (arithmetic->model.bit0 + arithmetic->model.bit1);

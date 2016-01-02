@@ -25,7 +25,6 @@ void binarizer_alphabet_0123(BINARIZER_ALPHABET * alphabet);
 struct binarizer {
 	BINARIZER_ALPHABET alphabet;
 	FASTA fasta;
-	int rwMode;
 
 	unsigned char bits;
 	signed char position;
