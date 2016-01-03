@@ -11,13 +11,8 @@ struct arithmetic {
 	uint64_t symbols;
 
 	struct {
-		union {
-			struct {
-				uint64_t bit0;
-				uint64_t bit1;
-			};
-			uint64_t bits[2];
-		};
+		uint64_t bit0;
+		uint64_t bit1;
 		uint64_t cnt;
 	} model;
 

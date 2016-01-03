@@ -4,6 +4,7 @@
 #include "common.h"
 #include "fasta.h"
 #include "binarizer.h"
+#include "arithmetic.h"
 
 void encode(char * in, char * out) {
 	FASTA f1 = fasta_open(in, READING);
@@ -28,15 +29,20 @@ void encode(char * in, char * out) {
 			BINARIZER b1 = binarizer_open(f1, acgt);
 			BINARIZER b2 = binarizer_open(f2, ident);
 
-			int c;
+			ARITHMETIC a = arithmetic_open(b2);
+
+			int bit;
 			while (1) {
-				c = binarizer_get_bit(b1);
-				if (c == -1) {
+				bit = binarizer_get_bit(b1);
+				if (bit == -1) {
 					break;
 				}
 				//printf("bit %d, pos %d\n", c & 1, (c >> 8) & 255);
-				binarizer_put_bit(b2, c);
+
+				arithmetic_encode_bit(a, bit);
 			}
+			arithmetic_close(a);
+
 			printf("\n");
 
 			binarizer_close(b1);
@@ -82,15 +88,20 @@ void decode(char * in, char * out) {
 			BINARIZER b1 = binarizer_open(f1, ident);
 			BINARIZER b2 = binarizer_open(f2, a0123);
 
-			int c;
+			ARITHMETIC a = arithmetic_open(b1);
+
+			int bit;
 			while (1) {
-				c = binarizer_get_bit(b1);
-				if (c == -1) {
+				bit = arithmetic_decode_bit(a);
+				if (bit == -1) {
 					break;
 				}
 				//printf("bit %d, pos %d\n", c & 1, (c >> 8) & 255);
-				binarizer_put_bit(b2, c);
+
+				binarizer_put_bit(b2, bit);
 			}
+			arithmetic_close(a);
+
 			printf("\n");
 
 			binarizer_close(b1);

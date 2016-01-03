@@ -187,6 +187,7 @@ void fasta_put_name(FASTA fasta, char * name) {
 
 	fasta->curSeqType = name[0];
 	fasta->curSeqPos = ftell(fasta->file);
+	fasta->curSeqSize = 0;
 }
 
 int fasta_has_sequence(FASTA fasta) {
@@ -245,14 +246,9 @@ int fasta_get_char(FASTA fasta) {
 				return -1;
 			}
 
-			unsigned char space[8];
-			fasta_read_space(fasta, pos, 8, space);
-
-			fasta->curSeqSize = convert_from_data(8, space);
-			fseek(fasta->file, 8, SEEK_CUR);
-			fasta->curChar += 8;
-			pos += 8;
+			fasta_reserve_space(fasta, 8);
 		}
+		pos = ftell(fasta->file);
 		if (fasta->curChar * 8 >= fasta->curSeqSize) {
 			return -1;
 		}
@@ -296,6 +292,32 @@ void fasta_put_char(FASTA fasta, int c) {
 }
 
 size_t fasta_reserve_space(FASTA fasta, int size) {
+	// reserve space could be called before put or get char
+	if (fasta->curSeqType == NAME_START_COMPRESSED) {
+		if ((fasta->rwMode == WRITING && fasta->curSeqSize == 0)
+				|| (fasta->rwMode == READING && fasta->curChar == 0)) {
+			// reserve space for fasta purposes
+			// fake size to prevent infinite recursion
+			if (fasta->rwMode == READING) {
+				fasta->curChar++;
+			} else {
+				fasta->curSeqSize++;
+			}
+
+			size_t pos = fasta_reserve_space(fasta, 8);
+
+			if (fasta->rwMode == READING) {
+				unsigned char space[8];
+				fasta_read_space(fasta, pos, 8, space);
+				fasta->curSeqSize = convert_from_data(8, space);
+
+				fasta->curChar--;
+			} else {
+				fasta->curSeqSize--;
+			}
+		}
+	}
+
 	size_t pos = ftell(fasta->file);
 	if (fasta->rwMode == WRITING) {
 		for (int i = 0; i < size; i++) {
@@ -304,6 +326,7 @@ size_t fasta_reserve_space(FASTA fasta, int size) {
 		fasta->curSeqSize += size * 8;
 	} else {
 		fseek(fasta->file, size, SEEK_CUR);
+		fasta->curChar += 8;
 	}
 	return pos;
 }
