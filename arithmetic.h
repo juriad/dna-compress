@@ -11,17 +11,18 @@ struct arithmetic {
 	uint64_t symbols;
 
 	struct {
-		uint64_t bit0;
-		uint64_t bit1;
-		uint64_t cnt;
+		uint32_t bit0;
+		uint32_t bit1;
+		uint32_t cnt;
 	} model;
 
-	uint64_t lower;
-	uint64_t range;
-	uint64_t pending;
+	char bits;
+	uint32_t lower;
+	uint32_t range;
+	uint32_t pending;
 
-	uint64_t b1;
-	uint64_t b2;
+	uint32_t b1;
+	uint32_t b2;
 };
 
 typedef struct arithmetic * ARITHMETIC;

@@ -6,9 +6,6 @@
 #define COMPRESS 1
 #define DECOMPRESS 0
 
-#define READING 1
-#define WRITING 0
-
 void convert_to_data(uint64_t value, int size, unsigned char * data);
 
 uint64_t convert_from_data(int size, unsigned char * data);

@@ -12,10 +12,10 @@
 #define NAME_START '>'
 #define NAME_START_COMPRESSED '<'
 
-FASTA fasta_open(char * filename, int rwMode) {
+FASTA fasta_open(char * filename, int flags) {
 	FASTA fasta = calloc(1, sizeof(*fasta));
-	fasta->rwMode = rwMode;
-	fasta->file = fopen(filename, rwMode == READING ? "r" : "w+");
+	fasta->rwMode = flags;
+	fasta->file = fopen(filename, flags == READING ? "r" : "w+");
 
 	fasta->curSeq = -1;
 	fasta->curNamePos = 0;

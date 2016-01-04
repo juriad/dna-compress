@@ -8,16 +8,18 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	ARITHMETIC arithmetic = calloc(1, sizeof(*arithmetic));
 	arithmetic->binarizer = binarizer;
 
-	uint64_t one = 1;
-	arithmetic->b1 = one << (sizeof(arithmetic->lower) * 8 - 1);
-	arithmetic->b2 = one << (sizeof(arithmetic->lower) * 8 - 2);
+	arithmetic->bits = sizeof(arithmetic->lower) * 8;
+
+	uint32_t one = 1;
+	arithmetic->b1 = one << (arithmetic->bits - 1);
+	arithmetic->b2 = one << (arithmetic->bits - 2);
 
 	arithmetic->lower = 0;
 	arithmetic->range = arithmetic->b1;
 	arithmetic->pending = 0;
 
-	arithmetic->model.bit0 = 2;
-	arithmetic->model.bit1 = 2;
+	arithmetic->model.bit0 = 1;
+	arithmetic->model.bit1 = 1;
 
 	return arithmetic;
 }
@@ -33,13 +35,14 @@ void arithmetic_close(ARITHMETIC arithmetic) {
 
 	if (arithmetic->binarizer->fasta->rwMode == WRITING) {
 		// output pending bits from lower
-		for (int i = 0; arithmetic->pending > 0; arithmetic->pending--, i++) {
-		//for (int i = 0; i < 64; i++) {
-			int shift = sizeof(arithmetic->lower) - i - 1;
+		//for (int i = 0; arithmetic->pending > 0; arithmetic->pending--, i++) {
+		for (int i = 0; i < 64; i++) {
+			int shift = arithmetic->bits - i - 1;
 			int bit = (arithmetic->lower >> shift) & 1;
 			binarizer_put_bit(arithmetic->binarizer, bit);
 		}
 	}
+
 	free(arithmetic);
 }
 
@@ -76,8 +79,9 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 			arithmetic->range);
 
 	while (arithmetic->range <= arithmetic->b2) {
-		// FIXME integer overflow
-		if (arithmetic->lower + arithmetic->range <= arithmetic->b1) { // 0
+		// tests which deals with integer overflow
+		if (arithmetic->lower + arithmetic->range <= arithmetic->b1
+				&& arithmetic->lower < arithmetic->lower + arithmetic->range) { // 0
 			printf("0+ ");
 			output(arithmetic, 0);
 		} else if (arithmetic->b1 <= arithmetic->lower) { // 1
@@ -122,13 +126,13 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		}
 
 		// read bits into lower
-		for (int i = 0; i < sizeof(arithmetic->lower) * 8; i++) {
+		for (int i = 0; i < arithmetic->bits; i++) {
 			int bit = binarizer_get_bit(arithmetic->binarizer);
-			printf("init bit %d\n", bit & 1);
 			if (bit < 0) {
 				break;
 			}
-			int shift = sizeof(arithmetic->lower) * 8 - i - 1;
+			printf("init bit %d\n", bit & 1);
+			int shift = arithmetic->bits - i - 1;
 			arithmetic->lower |= (bit & (uint64_t) 1) << shift;
 		}
 	}
