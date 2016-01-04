@@ -33,7 +33,7 @@ void arithmetic_close(ARITHMETIC arithmetic) {
 				space);
 	}
 
-	if (arithmetic->binarizer->fasta->rwMode == WRITING) {
+	if (FASTA_IS_WRITING(arithmetic->binarizer->fasta)) {
 		// output pending bits from lower
 		//for (int i = 0; arithmetic->pending > 0; arithmetic->pending--, i++) {
 		for (int i = 0; i < 64; i++) {

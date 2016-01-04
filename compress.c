@@ -7,8 +7,8 @@
 #include "arithmetic.h"
 
 void encode(char * in, char * out) {
-	FASTA f1 = fasta_open(in, READING);
-	FASTA f2 = fasta_open(out, WRITING);
+	FASTA f1 = fasta_open(in, FASTA_READING);
+	FASTA f2 = fasta_open(out, FASTA_WRITING);
 
 	BINARIZER_ALPHABET ident, acgt;
 	binarizer_alphabet_identity(&ident);
@@ -66,8 +66,8 @@ void encode(char * in, char * out) {
 }
 
 void decode(char * in, char * out) {
-	FASTA f1 = fasta_open(in, READING);
-	FASTA f2 = fasta_open(out, WRITING);
+	FASTA f1 = fasta_open(in, FASTA_READING);
+	FASTA f2 = fasta_open(out, FASTA_WRITING);
 
 	BINARIZER_ALPHABET ident, a0123;
 	binarizer_alphabet_identity(&ident);

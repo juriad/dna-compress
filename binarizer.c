@@ -43,7 +43,7 @@ BINARIZER binarizer_open(FASTA fasta, BINARIZER_ALPHABET alphabet) {
 }
 
 void binarizer_close(BINARIZER binarizer) {
-	if (binarizer->position != 0 && binarizer->fasta->rwMode == WRITING) {
+	if (binarizer->position != 0 && FASTA_IS_WRITING(binarizer->fasta)) {
 		fasta_put_char(binarizer->fasta,
 				binarizer->alphabet.bits[binarizer->bits]
 						| binarizer->position << 8);

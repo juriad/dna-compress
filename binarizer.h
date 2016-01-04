@@ -11,16 +11,11 @@ struct binarizer_alphabet {
 typedef struct binarizer_alphabet BINARIZER_ALPHABET;
 
 void binarizer_alphabet_init(BINARIZER_ALPHABET * alphabet, char bits_length);
-
 void binarizer_alphabet_identity(BINARIZER_ALPHABET * alphabet);
-
 void binarizer_alphabet_acgt(BINARIZER_ALPHABET * alphabet);
-
 void binarizer_alphabet_0123(BINARIZER_ALPHABET * alphabet);
 
-#define binarizer_symbol(alphabet, sym, bi) do { \
-		(alphabet).bits[sym] = bi; \
-} while(0)
+#define binarizer_symbol(alphabet, sym, bi) (alphabet).bits[sym] = (bi)
 
 struct binarizer {
 	BINARIZER_ALPHABET alphabet;
