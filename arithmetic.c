@@ -3,50 +3,64 @@
 #include "common.h"
 #include "arithmetic.h"
 
+#define RESERVED_SPACE 8
+
+// TODO remove printf
+
 ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	ARITHMETIC arithmetic = calloc(1, sizeof(*arithmetic));
 	arithmetic->binarizer = binarizer;
 
-	arithmetic->bits = sizeof(ar) * 8;
+	arithmetic->bits = sizeof(arithmetic_type) * 8;
 
-	ar one = 1;
+	arithmetic_type one = 1;
 	arithmetic->b1 = one << (arithmetic->bits - 1);
 	arithmetic->b2 = one << (arithmetic->bits - 2);
 
 	arithmetic->lower = 0;
 	arithmetic->range = arithmetic->b1;
 	arithmetic->pending = 0;
+	arithmetic->zeros = 0;
 
+	// TODO make model adaptive
 	arithmetic->model.bit0 = 1;
-	arithmetic->model.bit1 = 5;
+	arithmetic->model.bit1 = 1;
 
 	return arithmetic;
 }
 
+void write(ARITHMETIC arithmetic, int bit) {
+	// prevent writing of trailing zeros
+	if (bit == 0) {
+		arithmetic->zeros++;
+		return;
+	}
+
+	for (; arithmetic->zeros > 0; arithmetic->zeros--) {
+		binarizer_put_bit(arithmetic->binarizer, 0);
+	}
+	binarizer_put_bit(arithmetic->binarizer, 1);
+}
+
 void output(ARITHMETIC arithmetic, int bit) {
-	binarizer_put_bit(arithmetic->binarizer, bit);
+	write(arithmetic, bit);
 	for (; arithmetic->pending > 0; arithmetic->pending--) {
-		binarizer_put_bit(arithmetic->binarizer, 1 - bit);
+		write(arithmetic, 1 - bit);
 	}
 }
 
 void arithmetic_close(ARITHMETIC arithmetic) {
 	if (arithmetic->symbols > 0) {
 		printf("Written %ld symbols\n", arithmetic->symbols);
-		unsigned char space[8];
-		convert_to_data(arithmetic->symbols, 8, space);
-		fasta_write_space(arithmetic->binarizer->fasta, arithmetic->position, 8,
-				space);
+		unsigned char space[RESERVED_SPACE];
+		convert_to_data(arithmetic->symbols, RESERVED_SPACE, space);
+		fasta_write_space(arithmetic->binarizer->fasta, arithmetic->position,
+		RESERVED_SPACE, space);
 	}
 
 	if (FASTA_IS_WRITING(arithmetic->binarizer->fasta)) {
-		// TODO no trailing zeros
-
-		// output pending bits from lower
-		for (int i = 0;
-				i < arithmetic->bits
-						&& (arithmetic->lower != 0 || arithmetic->pending > 0);
-				i++) {
+		// output bits from lower
+		for (int i = 0; i < arithmetic->bits; i++) {
 			int shift = arithmetic->bits - i - 1;
 			int bit = (arithmetic->lower >> shift) & 1;
 			output(arithmetic, bit);
@@ -59,16 +73,17 @@ void arithmetic_close(ARITHMETIC arithmetic) {
 void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 	if (arithmetic->symbols == 0) {
 		arithmetic->position = fasta_reserve_space(arithmetic->binarizer->fasta,
-				8);
+		RESERVED_SPACE);
 		printf("reserved position: %ld\n", arithmetic->position);
 	}
 
 	bit &= 1;
-	ar r = arithmetic->range
+	arithmetic_type r = arithmetic->range
 			/ (double) (arithmetic->model.bit0 + arithmetic->model.bit1);
 
 	printf(
-			"encoding %d, lower is " arf ", range is " arf ", ratio is " arf ", part is " arf "\n",
+			"encoding %d, lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
+			", ratio is " ARITHMETIC_TYPE_FORMAT ", part is " ARITHMETIC_TYPE_FORMAT "\n",
 			bit, arithmetic->lower, arithmetic->range, r,
 			r * arithmetic->model.bit0);
 
@@ -80,7 +95,8 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 		arithmetic->range = r * arithmetic->model.bit0;
 	}
 
-	printf("            lower is " arf ", range is " arf "\n",
+	printf(
+			"            lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT "\n",
 			arithmetic->lower, arithmetic->range);
 
 	while (arithmetic->range <= arithmetic->b2) {
@@ -100,7 +116,8 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 		}
 		arithmetic->lower <<= 1;
 		arithmetic->range <<= 1;
-		printf("         lower is " arf ", range is " arf "\n",
+		printf(
+				"         lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT "\n",
 				arithmetic->lower, arithmetic->range);
 	}
 	arithmetic->symbols++;
@@ -119,10 +136,10 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 			return -1;
 		}
 
-		arithmetic->position = fasta_reserve_space(fasta, 8);
-		unsigned char space[8];
-		fasta_read_space(fasta, arithmetic->position, 8, space);
-		arithmetic->symbols = convert_from_data(8, space);
+		arithmetic->position = fasta_reserve_space(fasta, RESERVED_SPACE);
+		unsigned char space[RESERVED_SPACE];
+		fasta_read_space(fasta, arithmetic->position, RESERVED_SPACE, space);
+		arithmetic->symbols = convert_from_data(RESERVED_SPACE, space);
 		printf("read about %ld symbols on position %ld\n", arithmetic->symbols,
 				arithmetic->position);
 		if (arithmetic->symbols == 0) {
@@ -138,15 +155,16 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 			}
 			printf("init bit %d\n", bit & 1);
 			int shift = arithmetic->bits - i - 1;
-			arithmetic->lower |= (bit & (ar) 1) << shift;
+			arithmetic->lower |= (bit & (arithmetic_type) 1) << shift;
 		}
 	}
 
-	ar r = arithmetic->range
+	arithmetic_type r = arithmetic->range
 			/ (double) (arithmetic->model.bit0 + arithmetic->model.bit1);
 
 	printf(
-			"decoding,   lower is " arf ", range is " arf ", ratio is " arf ", part is " arf "\n",
+			"decoding,   lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
+			", ratio is " ARITHMETIC_TYPE_FORMAT ", part is " ARITHMETIC_TYPE_FORMAT "\n",
 			arithmetic->lower, arithmetic->range, r,
 			r * arithmetic->model.bit0);
 
@@ -160,8 +178,9 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		arithmetic->range = r * arithmetic->model.bit0;
 	}
 
-	printf("%d+          lower is " arf ", range is " arf "\n", decoded,
-			arithmetic->lower, arithmetic->range);
+	printf(
+			"%d+          lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
+			"\n", decoded, arithmetic->lower, arithmetic->range);
 
 	while (arithmetic->range <= arithmetic->b2) {
 		arithmetic->range <<= 1;
@@ -169,11 +188,13 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		// refill bits
 		int bit = binarizer_get_bit(arithmetic->binarizer);
 		if (bit >= 0) {
-			arithmetic->lower |= ((ar) bit & 1);
+			arithmetic->lower |= ((arithmetic_type) bit & 1);
 		} else {
 		}
-		printf("            lower is " arf ", range is " arf ", filled %d\n",
-				arithmetic->lower, arithmetic->range, bit >= 0 ? bit & 1 : bit);
+		printf(
+				"            lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
+				", filled %d\n", arithmetic->lower, arithmetic->range,
+				bit >= 0 ? bit & 1 : bit);
 	}
 
 	arithmetic->symbols--;

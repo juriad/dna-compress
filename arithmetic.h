@@ -5,12 +5,12 @@
 
 #include "binarizer.h"
 
-typedef uint8_t ar;
-#define arf "%d"//"%02hhX"
+typedef uint8_t arithmetic_type;
+#define ARITHMETIC_TYPE_FORMAT "%d"//"%02hhX"
 
 struct arithmetic {
 	BINARIZER binarizer;
-	size_t position;
+	off_t position;
 	uint64_t symbols;
 
 	struct {
@@ -19,13 +19,14 @@ struct arithmetic {
 		uint32_t cnt;
 	} model;
 
-	char bits;
-	ar lower;
-	ar range;
-	ar pending;
+	arithmetic_type lower;
+	arithmetic_type range;
+	arithmetic_type pending;
+	arithmetic_type zeros;
 
-	ar b1;
-	ar b2;
+	char bits;
+	arithmetic_type b1;
+	arithmetic_type b2;
 };
 
 typedef struct arithmetic * ARITHMETIC;
