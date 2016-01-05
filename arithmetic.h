@@ -5,6 +5,9 @@
 
 #include "binarizer.h"
 
+typedef uint8_t ar;
+#define arf "%d"//"%02hhX"
+
 struct arithmetic {
 	BINARIZER binarizer;
 	size_t position;
@@ -17,22 +20,20 @@ struct arithmetic {
 	} model;
 
 	char bits;
-	uint32_t lower;
-	uint32_t range;
-	uint32_t pending;
+	ar lower;
+	ar range;
+	ar pending;
 
-	uint32_t b1;
-	uint32_t b2;
+	ar b1;
+	ar b2;
 };
 
 typedef struct arithmetic * ARITHMETIC;
 
 ARITHMETIC arithmetic_open(BINARIZER binarizer);
-
 void arithmetic_close(ARITHMETIC arithmetic);
 
 void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit);
-
 int arithmetic_decode_bit(ARITHMETIC arithmetic);
 
 #endif /* ARITHMETIC_H_ */

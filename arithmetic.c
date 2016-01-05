@@ -7,9 +7,9 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	ARITHMETIC arithmetic = calloc(1, sizeof(*arithmetic));
 	arithmetic->binarizer = binarizer;
 
-	arithmetic->bits = sizeof(arithmetic->lower) * 8;
+	arithmetic->bits = sizeof(ar) * 8;
 
-	uint32_t one = 1;
+	ar one = 1;
 	arithmetic->b1 = one << (arithmetic->bits - 1);
 	arithmetic->b2 = one << (arithmetic->bits - 2);
 
@@ -17,10 +17,17 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	arithmetic->range = arithmetic->b1;
 	arithmetic->pending = 0;
 
-	arithmetic->model.bit0 = 5;
+	arithmetic->model.bit0 = 1;
 	arithmetic->model.bit1 = 5;
 
 	return arithmetic;
+}
+
+void output(ARITHMETIC arithmetic, int bit) {
+	binarizer_put_bit(arithmetic->binarizer, bit);
+	for (; arithmetic->pending > 0; arithmetic->pending--) {
+		binarizer_put_bit(arithmetic->binarizer, 1 - bit);
+	}
 }
 
 void arithmetic_close(ARITHMETIC arithmetic) {
@@ -33,23 +40,20 @@ void arithmetic_close(ARITHMETIC arithmetic) {
 	}
 
 	if (FASTA_IS_WRITING(arithmetic->binarizer->fasta)) {
+		// TODO no trailing zeros
+
 		// output pending bits from lower
-		//for (int i = 0; arithmetic->pending > 0; arithmetic->pending--, i++) {
-		for (int i = 0; i < 64; i++) {
+		for (int i = 0;
+				i < arithmetic->bits
+						&& (arithmetic->lower != 0 || arithmetic->pending > 0);
+				i++) {
 			int shift = arithmetic->bits - i - 1;
 			int bit = (arithmetic->lower >> shift) & 1;
-			binarizer_put_bit(arithmetic->binarizer, bit);
+			output(arithmetic, bit);
 		}
 	}
 
 	free(arithmetic);
-}
-
-void output(ARITHMETIC arithmetic, int bit) {
-	binarizer_put_bit(arithmetic->binarizer, bit);
-	for (; arithmetic->pending > 0; arithmetic->pending--) {
-		binarizer_put_bit(arithmetic->binarizer, 1 - bit);
-	}
 }
 
 void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
@@ -60,11 +64,13 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 	}
 
 	bit &= 1;
-	double r = arithmetic->range
+	ar r = arithmetic->range
 			/ (double) (arithmetic->model.bit0 + arithmetic->model.bit1);
 
-	printf("encoding %d, lower is %016lX, range is %016lX, ratio is %f\n", bit,
-			arithmetic->lower, arithmetic->range, r);
+	printf(
+			"encoding %d, lower is " arf ", range is " arf ", ratio is " arf ", part is " arf "\n",
+			bit, arithmetic->lower, arithmetic->range, r,
+			r * arithmetic->model.bit0);
 
 	if (bit) {
 		arithmetic->lower += r * arithmetic->model.bit0;
@@ -74,8 +80,8 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 		arithmetic->range = r * arithmetic->model.bit0;
 	}
 
-	printf("            lower is %016lX, range is %016lX\n", arithmetic->lower,
-			arithmetic->range);
+	printf("            lower is " arf ", range is " arf "\n",
+			arithmetic->lower, arithmetic->range);
 
 	while (arithmetic->range <= arithmetic->b2) {
 		// tests which deals with integer overflow
@@ -94,8 +100,8 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 		}
 		arithmetic->lower <<= 1;
 		arithmetic->range <<= 1;
-		printf("         lower is %016lX, range is %016lX\n", arithmetic->lower,
-				arithmetic->range);
+		printf("         lower is " arf ", range is " arf "\n",
+				arithmetic->lower, arithmetic->range);
 	}
 	arithmetic->symbols++;
 }
@@ -132,15 +138,17 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 			}
 			printf("init bit %d\n", bit & 1);
 			int shift = arithmetic->bits - i - 1;
-			arithmetic->lower |= (bit & (uint64_t) 1) << shift;
+			arithmetic->lower |= (bit & (ar) 1) << shift;
 		}
 	}
 
-	double r = arithmetic->range
+	ar r = arithmetic->range
 			/ (double) (arithmetic->model.bit0 + arithmetic->model.bit1);
 
-	printf("decoding,   lower is %016lX, range is %016lX, ratio is %f\n",
-			arithmetic->lower, arithmetic->range, r);
+	printf(
+			"decoding,   lower is " arf ", range is " arf ", ratio is " arf ", part is " arf "\n",
+			arithmetic->lower, arithmetic->range, r,
+			r * arithmetic->model.bit0);
 
 	int decoded = 0;
 	if (arithmetic->lower >= r * arithmetic->model.bit0) {
@@ -152,7 +160,7 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		arithmetic->range = r * arithmetic->model.bit0;
 	}
 
-	printf("%d+          lower is %016lX, range is %016lX\n", decoded,
+	printf("%d+          lower is " arf ", range is " arf "\n", decoded,
 			arithmetic->lower, arithmetic->range);
 
 	while (arithmetic->range <= arithmetic->b2) {
@@ -161,13 +169,11 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		// refill bits
 		int bit = binarizer_get_bit(arithmetic->binarizer);
 		if (bit >= 0) {
-			printf("fill bit %d\n", bit & 1);
-			arithmetic->lower |= ((uint64_t) bit & 1);
+			arithmetic->lower |= ((ar) bit & 1);
 		} else {
-			printf("out of bits\n");
 		}
-		printf("            lower is %016lX, range is %016lX\n",
-				arithmetic->lower, arithmetic->range);
+		printf("            lower is " arf ", range is " arf ", filled %d\n",
+				arithmetic->lower, arithmetic->range, bit >= 0 ? bit & 1 : bit);
 	}
 
 	arithmetic->symbols--;
