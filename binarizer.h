@@ -15,11 +15,20 @@ void binarizer_alphabet_identity(BINARIZER_ALPHABET * alphabet);
 void binarizer_alphabet_acgt(BINARIZER_ALPHABET * alphabet);
 void binarizer_alphabet_0123(BINARIZER_ALPHABET * alphabet);
 
-#define binarizer_symbol(alphabet, sym, bi) (alphabet).bits[sym] = (bi)
+#define BINARIZER_SYMBOL(alphabet, sym, bi) (alphabet).bits[sym] = (bi)
+
+typedef int (*BINARIZER_FILTER)(int, void *);
+
+struct binarizer_filters {
+	BINARIZER_FILTER filter;
+	void * data;
+	struct binarizer_filters * next;
+};
 
 struct binarizer {
-	BINARIZER_ALPHABET alphabet;
 	FASTA fasta;
+	BINARIZER_ALPHABET alphabet;
+	struct binarizer_filters * filters;
 
 	unsigned char bits;
 	signed char position;
@@ -33,5 +42,8 @@ void binarizer_close(BINARIZER binarizer);
 
 int binarizer_get_bit(BINARIZER binarizer);
 void binarizer_put_bit(BINARIZER binarizer, int bit);
+
+void binarizer_add_filter(BINARIZER binarizer, BINARIZER_FILTER filter,
+		void * data);
 
 #endif /* BINARIZER_H_ */

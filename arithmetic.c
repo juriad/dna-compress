@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <math.h>
 
 #include "common.h"
 #include "arithmetic.h"
@@ -18,8 +17,8 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	arithmetic->range = arithmetic->b1;
 	arithmetic->pending = 0;
 
-	arithmetic->model.bit0 = 1;
-	arithmetic->model.bit1 = 1;
+	arithmetic->model.bit0 = 5;
+	arithmetic->model.bit1 = 5;
 
 	return arithmetic;
 }

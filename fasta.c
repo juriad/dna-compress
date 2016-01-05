@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "common.h"
@@ -6,16 +5,15 @@
 #include "fasta.h"
 
 #define LINE_WIDTH 80
+#define RESERVED_SPACE 8
 
 #define EOL 10
 #define EOL2 13
 
-#define RESERVED_SPACE 8
-
 FASTA fasta_open(char * filename, int flags) {
 	FASTA fasta = calloc(1, sizeof(*fasta));
 	fasta->flags = flags;
-	fasta->file = fopen(filename, !FASTA_IS_WRITING(fasta) ? "r" : "w+");
+	fasta->file = fopen(filename, FASTA_IS_READING(fasta) ? "r" : "w+");
 
 	fasta->curSeq = -1;
 	fasta->curNamePos = 0;
@@ -27,7 +25,7 @@ void close_sequence(FASTA fasta) {
 	if (FASTA_IS_WRITING(fasta)) {
 		if (fasta->curSeqSize > 0) {
 			// write size
-			if (!FASTA_IS_PLAIN(fasta)) {
+			if (FASTA_IS_COMPRESSED(fasta)) {
 				unsigned char space[RESERVED_SPACE];
 				convert_to_data(fasta->curSeqSize, RESERVED_SPACE, space);
 				fasta_write_space(fasta, fasta->curSeqPos, RESERVED_SPACE,

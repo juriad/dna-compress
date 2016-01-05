@@ -15,24 +15,24 @@ void binarizer_alphabet_init(BINARIZER_ALPHABET * alphabet, char bits_length) {
 void binarizer_alphabet_identity(BINARIZER_ALPHABET * alphabet) {
 	binarizer_alphabet_init(alphabet, 8);
 	for (int i = 0; i < 256; i++) {
-		binarizer_symbol(*alphabet, i, i);
+		BINARIZER_SYMBOL(*alphabet, i, i);
 	}
 }
 
 void binarizer_alphabet_acgt(BINARIZER_ALPHABET * alphabet) {
 	binarizer_alphabet_init(alphabet, 2);
-	binarizer_symbol(*alphabet, 'A', 0);
-	binarizer_symbol(*alphabet, 'C', 1);
-	binarizer_symbol(*alphabet, 'G', 2);
-	binarizer_symbol(*alphabet, 'T', 3);
+	BINARIZER_SYMBOL(*alphabet, 'A', 0);
+	BINARIZER_SYMBOL(*alphabet, 'C', 1);
+	BINARIZER_SYMBOL(*alphabet, 'G', 2);
+	BINARIZER_SYMBOL(*alphabet, 'T', 3);
 }
 
 void binarizer_alphabet_0123(BINARIZER_ALPHABET * alphabet) {
 	binarizer_alphabet_init(alphabet, 2);
-	binarizer_symbol(*alphabet, 0, 'A');
-	binarizer_symbol(*alphabet, 1, 'C');
-	binarizer_symbol(*alphabet, 2, 'G');
-	binarizer_symbol(*alphabet, 3, 'T');
+	BINARIZER_SYMBOL(*alphabet, 0, 'A');
+	BINARIZER_SYMBOL(*alphabet, 1, 'C');
+	BINARIZER_SYMBOL(*alphabet, 2, 'G');
+	BINARIZER_SYMBOL(*alphabet, 3, 'T');
 }
 
 BINARIZER binarizer_open(FASTA fasta, BINARIZER_ALPHABET alphabet) {
@@ -49,6 +49,14 @@ void binarizer_close(BINARIZER binarizer) {
 						| binarizer->position << 8);
 	}
 	free(binarizer);
+}
+
+int process_filters(struct binarizer_filters * filters, int bit) {
+	if (filters != NULL) {
+		bit = filters->filter(bit, filters->data);
+		bit = process_filters(filters->next, bit);
+	}
+	return bit;
 }
 
 int binarizer_get_bit(BINARIZER binarizer) {
@@ -81,7 +89,7 @@ int binarizer_get_bit(BINARIZER binarizer) {
 		binarizer->position = -1;
 	}
 
-	return bit | pos << 8;
+	return process_filters(binarizer->filters, bit | pos << 8);
 }
 
 void binarizer_put_bit(BINARIZER binarizer, int bit) {
@@ -90,6 +98,8 @@ void binarizer_put_bit(BINARIZER binarizer, int bit) {
 	}
 
 	int pos = binarizer->position;
+	bit = process_filters(binarizer->filters, (bit & 1) | pos << 8);
+
 	int shift = binarizer->alphabet.bits_length - pos - 1;
 	binarizer->bits |= (bit & 1) << shift;
 	binarizer->position = (pos + 1) % binarizer->alphabet.bits_length;
@@ -99,4 +109,13 @@ void binarizer_put_bit(BINARIZER binarizer, int bit) {
 				binarizer->alphabet.bits[binarizer->bits]);
 		binarizer->bits = 0;
 	}
+}
+
+void binarizer_add_filter(BINARIZER binarizer, BINARIZER_FILTER filter,
+		void * data) {
+	struct binarizer_filters * filters = malloc(sizeof(binarizer->filters));
+	filters->filter = filter;
+	filters->data = data;
+	filters->next = binarizer->filters;
+	binarizer->filters = filters;
 }
