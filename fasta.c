@@ -52,6 +52,35 @@ void fasta_close(FASTA fasta) {
 	free(fasta);
 }
 
+int get_char(FASTA fasta) {
+	int c;
+	if (FASTA_IS_PLAIN(fasta)) {
+		do {
+			c = fgetc(fasta->file);
+		} while (c == EOL || c == EOL2);
+
+		if (c == FASTA_NAME_START_PLAIN || c == FASTA_NAME_START_COMPRESSED
+				|| c == EOF) {
+			if (c != EOF) {
+				fseeko(fasta->file, -1, SEEK_CUR);
+			}
+			return -1;
+		}
+	} else {
+		off_t pos = ftello(fasta->file);
+		int mod;
+		do {
+			c = fgetc(fasta->file);
+			mod = (pos - fasta->curSeqPos) % (LINE_WIDTH + fasta->curNl);
+			pos++;
+			// skip new lines aligned to LINE_WIDTH + 1 (and +2 if curNl == 2)
+		} while (
+				mod == LINE_WIDTH + fasta->curNl - 1 || fasta->curNl == 2 ?
+						mod == LINE_WIDTH : 0);
+	}
+	return c;
+}
+
 void fasta_fill_info(FASTA fasta) {
 	if (fasta->curSeq == -2) {
 		return;
@@ -101,13 +130,14 @@ void fasta_fill_info(FASTA fasta) {
 		return;
 	}
 
+	fseeko(fasta->file, -1, SEEK_CUR);
 	if (FASTA_IS_PLAIN(fasta)) {
-		fseeko(fasta->file, -1, SEEK_CUR);
+		// do nothing
 	} else {
 		// try reading rest
-		for (int i = 1; i < RESERVED_SPACE; i++) {
-			c = fgetc(fasta->file);
-			if (c == EOF) {
+		for (int i = 0; i < RESERVED_SPACE; i++) {
+			c = get_char(fasta);
+			if (c == -1) {
 				fasta->curSeqSize = 0;
 				return;
 			}
@@ -274,32 +304,16 @@ int fasta_get_char(FASTA fasta) {
 			return -1;
 		}
 
-		do {
-			c = fgetc(fasta->file);
-		} while (c == EOL || c == EOL2);
-
-		if (c == FASTA_NAME_START_PLAIN || c == FASTA_NAME_START_COMPRESSED
-				|| c == EOF) {
-			if (c != EOF) {
-				fseek(fasta->file, -1, SEEK_CUR);
-				fasta->curSeqSize = 2;
-			}
+		c = get_char(fasta);
+		if (c == -1) {
+			fasta->curSeqSize = 2;
 			return -1;
 		}
 	} else {
-		off_t pos = ftello(fasta->file);
 		if (fasta->curChar * 8 >= fasta->curSeqSize) {
 			return -1;
 		}
-		int mod;
-		do {
-			c = fgetc(fasta->file);
-			mod = (pos - fasta->curSeqPos) % (LINE_WIDTH + fasta->curNl);
-			pos++;
-			// skip new lines aligned to LINE_WIDTH + 1 (and +2 if curNl == 2)
-		} while (
-				mod == LINE_WIDTH + fasta->curNl - 1 || fasta->curNl == 2 ?
-						mod == LINE_WIDTH : 0);
+		c = get_char(fasta);
 	}
 
 	fasta->curChar++;
@@ -311,6 +325,15 @@ int fasta_get_char(FASTA fasta) {
 	}
 
 	return c | (len << 8);
+}
+
+void put_char(FASTA fasta, int c) {
+	off_t pos = ftello(fasta->file);
+	// it is time for a new line
+	if ((pos - fasta->curSeqPos) % (LINE_WIDTH + 1) == LINE_WIDTH) {
+		fputc(EOL, fasta->file);
+	}
+	fputc(c, fasta->file);
 }
 
 void fasta_put_char(FASTA fasta, int c) {
@@ -327,12 +350,7 @@ void fasta_put_char(FASTA fasta, int c) {
 		fasta->curSeqSize--;
 	}
 
-	// if it is time to put new line
-	off_t pos = ftello(fasta->file);
-	if ((pos - fasta->curSeqPos) % (LINE_WIDTH + 1) == LINE_WIDTH) {
-		fputc(EOL, fasta->file);
-	}
-	fputc(c, fasta->file);
+	put_char(fasta, c);
 
 	int len = (c >> 8) & 255;
 	if (len == 0) {
@@ -342,6 +360,10 @@ void fasta_put_char(FASTA fasta, int c) {
 }
 
 off_t fasta_reserve_space(FASTA fasta, int size) {
+	if (FASTA_IS_PLAIN(fasta)) {
+		return -1;
+	}
+
 	// reserve space could be called before put char
 	if (FASTA_IS_WRITING(fasta) && FASTA_IS_COMPRESSED(fasta)
 			&& fasta->curSeqSize == 0) {
@@ -355,11 +377,14 @@ off_t fasta_reserve_space(FASTA fasta, int size) {
 	off_t pos = ftello(fasta->file);
 	if (FASTA_IS_WRITING(fasta)) {
 		for (int i = 0; i < size; i++) {
-			fputc(255, fasta->file);
+			put_char(fasta, 255);
 		}
 		fasta->curSeqSize += size * 8;
 	} else {
-		fseeko(fasta->file, size, SEEK_CUR);
+		// do not attempt to seek because of new lines
+		for (int i = 0; i < size; i++) {
+			get_char(fasta);
+		}
 		fasta->curChar += size;
 	}
 	return pos;
@@ -367,20 +392,28 @@ off_t fasta_reserve_space(FASTA fasta, int size) {
 
 void fasta_read_space(FASTA fasta, off_t position, int size,
 		unsigned char * space) {
+	if (FASTA_IS_WRITING(fasta) || FASTA_IS_PLAIN(fasta)) {
+		return;
+	}
+
 	off_t pos = ftello(fasta->file);
 	fseeko(fasta->file, position, SEEK_SET);
 	for (int i = 0; i < size; i++) {
-		space[i] = fgetc(fasta->file);
+		space[i] = get_char(fasta);
 	}
 	fseeko(fasta->file, pos, SEEK_SET);
 }
 
 void fasta_write_space(FASTA fasta, off_t position, int size,
 		unsigned char * space) {
+	if (FASTA_IS_READING(fasta) || FASTA_IS_PLAIN(fasta)) {
+		return;
+	}
+
 	off_t pos = ftello(fasta->file);
 	fseeko(fasta->file, position, SEEK_SET);
 	for (int i = 0; i < size; i++) {
-		fputc(space[i], fasta->file);
+		put_char(fasta, space[i]);
 	}
 	fseeko(fasta->file, pos, SEEK_SET);
 }
