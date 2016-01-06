@@ -1,11 +1,11 @@
 #include <stdlib.h>
+#include <math.h>
 
 #include "common.h"
+
 #include "arithmetic.h"
 
 #define RESERVED_SPACE 8
-
-// TODO remove printf
 
 ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	ARITHMETIC arithmetic = calloc(1, sizeof(*arithmetic));
@@ -22,9 +22,11 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	arithmetic->pending = 0;
 	arithmetic->zeros = 0;
 
-	// TODO make model adaptive
 	arithmetic->model.bit0 = 1;
 	arithmetic->model.bit1 = 1;
+
+	arithmetic->model.history = 100;
+	arithmetic->model.degradation = pow(0.5, 1.0 / arithmetic->model.history);
 
 	return arithmetic;
 }
@@ -51,7 +53,7 @@ void output(ARITHMETIC arithmetic, int bit) {
 
 void arithmetic_close(ARITHMETIC arithmetic) {
 	if (arithmetic->symbols > 0) {
-		printf("Written %ld symbols\n", arithmetic->symbols);
+		// output pending
 		unsigned char space[RESERVED_SPACE];
 		convert_to_data(arithmetic->symbols, RESERVED_SPACE, space);
 		fasta_write_space(arithmetic->binarizer->fasta, arithmetic->position,
@@ -67,58 +69,64 @@ void arithmetic_close(ARITHMETIC arithmetic) {
 		}
 	}
 
+	printf("bit1: %f, bit0: %f\n", arithmetic->model.bit1,
+			arithmetic->model.bit0);
+
 	free(arithmetic);
+}
+
+void update_model(ARITHMETIC arithmetic, int bit) {
+	// TODO make better adaptive model
+	arithmetic->model.cnt++;
+
+	for (int i = 0; i < 2; i++) {
+		arithmetic->model.bits[i] *= arithmetic->model.degradation;
+	}
+
+	arithmetic->model.bits[bit]++;
+}
+
+arithmetic_type range0(ARITHMETIC arithmetic) {
+	double sum = arithmetic->model.bit0 + arithmetic->model.bit1;
+	double nom = arithmetic->range * arithmetic->model.bit0;
+	arithmetic_type r0 = nom / sum;
+	r0 = RANGE(r0, 1, arithmetic->range - 1);
+	return r0;
 }
 
 void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 	if (arithmetic->symbols == 0) {
 		arithmetic->position = fasta_reserve_space(arithmetic->binarizer->fasta,
 		RESERVED_SPACE);
-		printf("reserved position: %ld\n", arithmetic->position);
 	}
 
 	bit &= 1;
-	arithmetic_type r = arithmetic->range
-			/ (double) (arithmetic->model.bit0 + arithmetic->model.bit1);
-
-	printf(
-			"encoding %d, lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
-			", ratio is " ARITHMETIC_TYPE_FORMAT ", part is " ARITHMETIC_TYPE_FORMAT "\n",
-			bit, arithmetic->lower, arithmetic->range, r,
-			r * arithmetic->model.bit0);
+	arithmetic_type r0 = range0(arithmetic);
 
 	if (bit) {
-		arithmetic->lower += r * arithmetic->model.bit0;
-		arithmetic->range -= r * arithmetic->model.bit0;
+		arithmetic->lower += r0;
+		arithmetic->range -= r0;
 	} else {
 		// lower stays the same
-		arithmetic->range = r * arithmetic->model.bit0;
+		arithmetic->range = r0;
 	}
 
-	printf(
-			"            lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT "\n",
-			arithmetic->lower, arithmetic->range);
+	update_model(arithmetic, bit);
 
 	while (arithmetic->range <= arithmetic->b2) {
-		// tests which deals with integer overflow
+		// deals with integer overflow
 		if (arithmetic->lower + arithmetic->range <= arithmetic->b1
 				&& arithmetic->lower < arithmetic->lower + arithmetic->range) { // 0
-			printf("0+ ");
 			output(arithmetic, 0);
 		} else if (arithmetic->b1 <= arithmetic->lower) { // 1
-			printf("1+ ");
 			output(arithmetic, 1);
 			arithmetic->lower -= arithmetic->b1;
-		} else {
-			printf("p+ ");
+		} else { // p
 			arithmetic->pending++;
 			arithmetic->lower -= arithmetic->b2;
 		}
 		arithmetic->lower <<= 1;
 		arithmetic->range <<= 1;
-		printf(
-				"         lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT "\n",
-				arithmetic->lower, arithmetic->range);
 	}
 	arithmetic->symbols++;
 }
@@ -140,8 +148,6 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		unsigned char space[RESERVED_SPACE];
 		fasta_read_space(fasta, arithmetic->position, RESERVED_SPACE, space);
 		arithmetic->symbols = convert_from_data(RESERVED_SPACE, space);
-		printf("read about %ld symbols on position %ld\n", arithmetic->symbols,
-				arithmetic->position);
 		if (arithmetic->symbols == 0) {
 			// weird, but may happen
 			return -1;
@@ -153,34 +159,25 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 			if (bit < 0) {
 				break;
 			}
-			printf("init bit %d\n", bit & 1);
 			int shift = arithmetic->bits - i - 1;
-			arithmetic->lower |= (bit & (arithmetic_type) 1) << shift;
+			arithmetic_type b = bit & 1;
+			arithmetic->lower |= b << shift;
 		}
 	}
 
-	arithmetic_type r = arithmetic->range
-			/ (double) (arithmetic->model.bit0 + arithmetic->model.bit1);
-
-	printf(
-			"decoding,   lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
-			", ratio is " ARITHMETIC_TYPE_FORMAT ", part is " ARITHMETIC_TYPE_FORMAT "\n",
-			arithmetic->lower, arithmetic->range, r,
-			r * arithmetic->model.bit0);
+	arithmetic_type r0 = range0(arithmetic);
 
 	int decoded = 0;
-	if (arithmetic->lower >= r * arithmetic->model.bit0) {
+	if (arithmetic->lower >= r0) {
 		decoded = 1;
-		arithmetic->lower -= r * arithmetic->model.bit0;
-		arithmetic->range -= r * arithmetic->model.bit0;
+		arithmetic->lower -= r0;
+		arithmetic->range -= r0;
 	} else {
 		// lower stays the same
-		arithmetic->range = r * arithmetic->model.bit0;
+		arithmetic->range = r0;
 	}
 
-	printf(
-			"%d+          lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
-			"\n", decoded, arithmetic->lower, arithmetic->range);
+	update_model(arithmetic, decoded);
 
 	while (arithmetic->range <= arithmetic->b2) {
 		arithmetic->range <<= 1;
@@ -188,13 +185,8 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		// refill bits
 		int bit = binarizer_get_bit(arithmetic->binarizer);
 		if (bit >= 0) {
-			arithmetic->lower |= ((arithmetic_type) bit & 1);
-		} else {
+			arithmetic->lower |= bit & 1;
 		}
-		printf(
-				"            lower is " ARITHMETIC_TYPE_FORMAT ", range is " ARITHMETIC_TYPE_FORMAT
-				", filled %d\n", arithmetic->lower, arithmetic->range,
-				bit >= 0 ? bit & 1 : bit);
 	}
 
 	arithmetic->symbols--;

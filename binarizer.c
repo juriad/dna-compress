@@ -48,13 +48,19 @@ void binarizer_close(BINARIZER binarizer) {
 				binarizer->alphabet.bits[binarizer->bits]
 						| binarizer->position << 8);
 	}
+
+	while (binarizer->filters != NULL) {
+		struct binarizer_filters * filters = binarizer->filters;
+		binarizer->filters = filters->next;
+		free(filters);
+	}
 	free(binarizer);
 }
 
 int process_filters(struct binarizer_filters * filters, int bit) {
 	if (filters != NULL) {
-		bit = filters->filter(bit, filters->data);
 		bit = process_filters(filters->next, bit);
+		bit = filters->filter(bit, filters->data);
 	}
 	return bit;
 }
@@ -89,19 +95,20 @@ int binarizer_get_bit(BINARIZER binarizer) {
 		binarizer->position = -1;
 	}
 
-	return process_filters(binarizer->filters, bit | pos << 8);
+	return process_filters(binarizer->filters, bit | pos << 8) & 1;
 }
 
 void binarizer_put_bit(BINARIZER binarizer, int bit) {
 	if (bit < 0) {
 		return;
 	}
+	bit &= 1;
 
 	int pos = binarizer->position;
-	bit = process_filters(binarizer->filters, (bit & 1) | pos << 8);
+	bit = process_filters(binarizer->filters, bit | pos << 8);
 
 	int shift = binarizer->alphabet.bits_length - pos - 1;
-	binarizer->bits |= (bit & 1) << shift;
+	binarizer->bits |= bit << shift;
 	binarizer->position = (pos + 1) % binarizer->alphabet.bits_length;
 
 	if (binarizer->position == 0) {

@@ -5,7 +5,7 @@
 
 #include "binarizer.h"
 
-typedef uint8_t arithmetic_type;
+typedef uint64_t arithmetic_type;
 #define ARITHMETIC_TYPE_FORMAT "%d"//"%02hhX"
 
 struct arithmetic {
@@ -14,9 +14,16 @@ struct arithmetic {
 	uint64_t symbols;
 
 	struct {
-		uint32_t bit0;
-		uint32_t bit1;
-		uint32_t cnt;
+		union {
+			struct {
+				double bit0;
+				double bit1;
+			};
+			double bits[2];
+		};
+		uint64_t cnt;
+		uint64_t history;
+		double degradation;
 	} model;
 
 	arithmetic_type lower;
