@@ -5,6 +5,9 @@
 #include "fasta.h"
 #include "binarizer.h"
 #include "arithmetic.h"
+#include "predictor.h"
+
+#define PREDICTOR_LENGTH 22
 
 void encode(char * in, char * out) {
 	FASTA f1 = fasta_open(in, FASTA_READING);
@@ -27,6 +30,9 @@ void encode(char * in, char * out) {
 		if (fasta_has_sequence(f1)) {
 
 			BINARIZER b1 = binarizer_open(f1, acgt);
+			PREDICTOR_DATA data;
+			predictor_init_data(&data, PREDICTOR_LENGTH, 0);
+			binarizer_add_filter(b1, predictor_filter, &data);
 			BINARIZER b2 = binarizer_open(f2, ident);
 
 			ARITHMETIC a = arithmetic_open(b2);
@@ -46,6 +52,7 @@ void encode(char * in, char * out) {
 			printf("\n");
 
 			binarizer_close(b1);
+			predictor_destroy_data(&data);
 			binarizer_close(b2);
 
 		} else {
@@ -87,6 +94,9 @@ void decode(char * in, char * out) {
 
 			BINARIZER b1 = binarizer_open(f1, ident);
 			BINARIZER b2 = binarizer_open(f2, a0123);
+			PREDICTOR_DATA data;
+			predictor_init_data(&data, PREDICTOR_LENGTH, 1);
+			binarizer_add_filter(b2, predictor_filter, &data);
 
 			ARITHMETIC a = arithmetic_open(b1);
 
@@ -106,6 +116,7 @@ void decode(char * in, char * out) {
 
 			binarizer_close(b1);
 			binarizer_close(b2);
+			predictor_destroy_data(&data);
 
 		} else {
 			printf("empty\n");

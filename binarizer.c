@@ -22,9 +22,13 @@ void binarizer_alphabet_identity(BINARIZER_ALPHABET * alphabet) {
 void binarizer_alphabet_acgt(BINARIZER_ALPHABET * alphabet) {
 	binarizer_alphabet_init(alphabet, 2);
 	BINARIZER_SYMBOL(*alphabet, 'A', 0);
+	BINARIZER_SYMBOL(*alphabet, 'a', 0);
 	BINARIZER_SYMBOL(*alphabet, 'C', 1);
+	BINARIZER_SYMBOL(*alphabet, 'c', 1);
 	BINARIZER_SYMBOL(*alphabet, 'G', 2);
+	BINARIZER_SYMBOL(*alphabet, 'g', 2);
 	BINARIZER_SYMBOL(*alphabet, 'T', 3);
+	BINARIZER_SYMBOL(*alphabet, 't', 3);
 }
 
 void binarizer_alphabet_0123(BINARIZER_ALPHABET * alphabet) {

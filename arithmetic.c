@@ -25,7 +25,7 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	arithmetic->model.bit0 = 1;
 	arithmetic->model.bit1 = 1;
 
-	arithmetic->model.history = 100;
+	arithmetic->model.history = 30;
 	arithmetic->model.degradation = pow(0.5, 1.0 / arithmetic->model.history);
 
 	return arithmetic;
@@ -81,6 +81,11 @@ void update_model(ARITHMETIC arithmetic, int bit) {
 
 	for (int i = 0; i < 2; i++) {
 		arithmetic->model.bits[i] *= arithmetic->model.degradation;
+	}
+
+	if(arithmetic->model.cnt % 10000 == 0) {
+		printf("bit1: %f, bit0: %f\n", arithmetic->model.bit1,
+					arithmetic->model.bit0);
 	}
 
 	arithmetic->model.bits[bit]++;
