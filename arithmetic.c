@@ -7,7 +7,7 @@
 
 #define RESERVED_SPACE 8
 
-ARITHMETIC arithmetic_open(BINARIZER binarizer) {
+ARITHMETIC arithmetic_open(BINARIZER binarizer, ARITHMETIC_MODEL model) {
 	ARITHMETIC arithmetic = calloc(1, sizeof(*arithmetic));
 	arithmetic->binarizer = binarizer;
 
@@ -22,11 +22,7 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer) {
 	arithmetic->pending = 0;
 	arithmetic->zeros = 0;
 
-	arithmetic->model.bit0 = 1;
-	arithmetic->model.bit1 = 1;
-
-	arithmetic->model.history = 30;
-	arithmetic->model.degradation = pow(0.5, 1.0 / arithmetic->model.history);
+	arithmetic->model = model;
 
 	return arithmetic;
 }
@@ -69,54 +65,23 @@ void arithmetic_close(ARITHMETIC arithmetic) {
 		}
 	}
 
-	printf("bit1: %f, bit0: %f\n", arithmetic->model.bit1,
-			arithmetic->model.bit0);
-
 	free(arithmetic);
 }
 
-void update_model(ARITHMETIC arithmetic, int bit) {
-	// TODO make better adaptive model
-	arithmetic->model.cnt++;
-
-	for (int i = 0; i < 2; i++) {
-		arithmetic->model.bits[i] *= arithmetic->model.degradation;
-	}
-
-	if(arithmetic->model.cnt % 10000 == 0) {
-		printf("bit1: %f, bit0: %f\n", arithmetic->model.bit1,
-					arithmetic->model.bit0);
-	}
-
-	arithmetic->model.bits[bit]++;
-}
-
-arithmetic_type range0(ARITHMETIC arithmetic) {
-	double sum = arithmetic->model.bit0 + arithmetic->model.bit1;
-	double nom = arithmetic->range * arithmetic->model.bit0;
-	arithmetic_type r0 = nom / sum;
-	r0 = RANGE(r0, 1, arithmetic->range - 1);
-	return r0;
-}
-
-void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
+void arithmetic_encode_symbol(ARITHMETIC arithmetic, int symbol) {
 	if (arithmetic->symbols == 0) {
 		arithmetic->position = fasta_reserve_space(arithmetic->binarizer->fasta,
 		RESERVED_SPACE);
 	}
 
-	bit &= 1;
-	arithmetic_type r0 = range0(arithmetic);
+	arithmetic_type rmz1 = arithmetic->model.model_rank(symbol,
+			arithmetic->range, arithmetic->model.model_data);
+	arithmetic->lower += rmz1;
+	arithmetic_type rmz = arithmetic->model.model_rank(symbol + 1,
+			arithmetic->range, arithmetic->model.model_data);
+	arithmetic->range = rmz - rmz1;
 
-	if (bit) {
-		arithmetic->lower += r0;
-		arithmetic->range -= r0;
-	} else {
-		// lower stays the same
-		arithmetic->range = r0;
-	}
-
-	update_model(arithmetic, bit);
+	arithmetic->model.model_update(symbol, arithmetic->model.model_data);
 
 	while (arithmetic->range <= arithmetic->b2) {
 		// deals with integer overflow
@@ -136,7 +101,7 @@ void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit) {
 	arithmetic->symbols++;
 }
 
-int arithmetic_decode_bit(ARITHMETIC arithmetic) {
+int arithmetic_decode_symbol(ARITHMETIC arithmetic) {
 	if (arithmetic->symbols == 0) {
 		if (arithmetic->position > 0) {
 			// position can never be zero because of how fasta is organized
@@ -170,19 +135,17 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 		}
 	}
 
-	arithmetic_type r0 = range0(arithmetic);
+	int symbol = arithmetic->model.model_select(arithmetic->lower,
+			arithmetic->range, arithmetic->model.model_data);
 
-	int decoded = 0;
-	if (arithmetic->lower >= r0) {
-		decoded = 1;
-		arithmetic->lower -= r0;
-		arithmetic->range -= r0;
-	} else {
-		// lower stays the same
-		arithmetic->range = r0;
-	}
+	arithmetic_type rmz1 = arithmetic->model.model_rank(symbol,
+			arithmetic->range, arithmetic->model.model_data);
+	arithmetic->lower -= rmz1;
+	arithmetic_type rmz = arithmetic->model.model_rank(symbol + 1,
+			arithmetic->range, arithmetic->model.model_data);
+	arithmetic->range = rmz - rmz1;
 
-	update_model(arithmetic, decoded);
+	arithmetic->model.model_update(symbol, arithmetic->model.model_data);
 
 	while (arithmetic->range <= arithmetic->b2) {
 		arithmetic->range <<= 1;
@@ -195,5 +158,5 @@ int arithmetic_decode_bit(ARITHMETIC arithmetic) {
 	}
 
 	arithmetic->symbols--;
-	return decoded;
+	return symbol;
 }

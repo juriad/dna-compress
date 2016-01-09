@@ -8,23 +8,25 @@
 typedef uint64_t arithmetic_type;
 #define ARITHMETIC_TYPE_FORMAT "%d"//"%02hhX"
 
+typedef arithmetic_type (*ARITHMETIC_MODEL_RANK)(int, arithmetic_type, void *);
+typedef int (*ARITHMETIC_MODEL_SELECT)(arithmetic_type, arithmetic_type, void *);
+typedef void (*ARITHMETIC_MODEL_UPDATE)(int, void *);
+
+struct arithmetic_model {
+	ARITHMETIC_MODEL_RANK model_rank;
+	ARITHMETIC_MODEL_SELECT model_select;
+	ARITHMETIC_MODEL_UPDATE model_update;
+	void * model_data;
+};
+
+typedef struct arithmetic_model ARITHMETIC_MODEL;
+
 struct arithmetic {
 	BINARIZER binarizer;
 	off_t position;
 	uint64_t symbols;
 
-	struct {
-		union {
-			struct {
-				double bit0;
-				double bit1;
-			};
-			double bits[2];
-		};
-		uint64_t cnt;
-		uint64_t history;
-		double degradation;
-	} model;
+	ARITHMETIC_MODEL model;
 
 	arithmetic_type lower;
 	arithmetic_type range;
@@ -38,10 +40,12 @@ struct arithmetic {
 
 typedef struct arithmetic * ARITHMETIC;
 
-ARITHMETIC arithmetic_open(BINARIZER binarizer);
+ARITHMETIC arithmetic_open(BINARIZER binarizer, ARITHMETIC_MODEL model);
 void arithmetic_close(ARITHMETIC arithmetic);
 
-void arithmetic_encode_bit(ARITHMETIC arithmetic, int bit);
-int arithmetic_decode_bit(ARITHMETIC arithmetic);
+void arithmetic_encode_symbol(ARITHMETIC arithmetic, int symbol);
+int arithmetic_decode_symbol(ARITHMETIC arithmetic);
+
+void arithmetic_set_model(struct arithmetic_model model);
 
 #endif /* ARITHMETIC_H_ */
