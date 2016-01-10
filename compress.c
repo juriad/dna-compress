@@ -7,12 +7,13 @@
 #include "arithmetic.h"
 #include "predictor.h"
 #include "adaptive_model.h"
+#include "counter.h"
 
 #define PREDICTOR_LENGTH 22
 
 void toggle(char * in, char * out) {
-	FASTA f1 = fasta_open(in, FASTA_READING);
-	FASTA f2 = fasta_open(out, FASTA_WRITING);
+	FASTA_PTR f1 = fasta_open(in, FASTA_READING);
+	FASTA_PTR f2 = fasta_open(out, FASTA_WRITING);
 
 	BINARIZER_ALPHABET ident, acgt, a0123;
 	binarizer_alphabet_identity(&ident);
@@ -30,19 +31,24 @@ void toggle(char * in, char * out) {
 		printf("%s\n", name);
 
 		if (fasta_has_sequence(f1)) {
-			BINARIZER b1, b2;
+			BINARIZER_PTR b1, b2;
 
-			ARITHMETIC a;
+			ARITHMETIC_PTR a;
 			ARITHMETIC_MODEL model;
 			adaptive_model_init(&model, 30);
 			PREDICTOR_DATA data;
+			COUNTER_DATA before, after;
+			counter_init_data(&before, 2);
+			counter_init_data(&after, 2);
 
 			if (name[0] == '<') {
 				// encoding
 
 				b1 = binarizer_open(f1, acgt);
+				binarizer_add_filter(b1, counter_filter, &before);
 				predictor_init_data(&data, PREDICTOR_LENGTH, 0);
 				binarizer_add_filter(b1, predictor_filter, &data);
+				binarizer_add_filter(b1, counter_filter, &after);
 				b2 = binarizer_open(f2, ident);
 
 				a = arithmetic_open(b2, model);
@@ -61,8 +67,10 @@ void toggle(char * in, char * out) {
 
 				b1 = binarizer_open(f1, ident);
 				b2 = binarizer_open(f2, a0123);
+				binarizer_add_filter(b2, counter_filter, &before);
 				predictor_init_data(&data, PREDICTOR_LENGTH, 1);
 				binarizer_add_filter(b2, predictor_filter, &data);
+				binarizer_add_filter(b2, counter_filter, &after);
 
 				a = arithmetic_open(b1, model);
 
@@ -77,11 +85,17 @@ void toggle(char * in, char * out) {
 				}
 			}
 
+			printf("0: %d, 1: %d -> 0: %d, 1: %d\n", counter_get(&before, 0),
+					counter_get(&before, 1), counter_get(&after, 0),
+					counter_get(&after, 1));
+
 			arithmetic_close(a);
 			adaptive_model_destroy(&model);
 			binarizer_close(b1);
 			binarizer_close(b2);
 			predictor_destroy_data(&data);
+			counter_destroy_data(&before);
+			counter_destroy_data(&after);
 		}
 
 		free(name);

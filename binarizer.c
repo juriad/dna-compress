@@ -39,14 +39,14 @@ void binarizer_alphabet_0123(BINARIZER_ALPHABET * alphabet) {
 	BINARIZER_SYMBOL(*alphabet, 3, 'T');
 }
 
-BINARIZER binarizer_open(FASTA fasta, BINARIZER_ALPHABET alphabet) {
-	BINARIZER binarizer = calloc(1, sizeof(*binarizer));
+BINARIZER_PTR binarizer_open(FASTA_PTR fasta, BINARIZER_ALPHABET alphabet) {
+	BINARIZER_PTR binarizer = calloc(1, sizeof(*binarizer));
 	binarizer->alphabet = alphabet;
 	binarizer->fasta = fasta;
 	return binarizer;
 }
 
-void binarizer_close(BINARIZER binarizer) {
+void binarizer_close(BINARIZER_PTR binarizer) {
 	if (binarizer->position != 0 && FASTA_IS_WRITING(binarizer->fasta)) {
 		fasta_put_char(binarizer->fasta,
 				binarizer->alphabet.bits[binarizer->bits]
@@ -69,7 +69,7 @@ int process_filters(struct binarizer_filters * filters, int bit) {
 	return bit;
 }
 
-int binarizer_get_bit(BINARIZER binarizer) {
+int binarizer_get_bit(BINARIZER_PTR binarizer) {
 	if (binarizer->position < 0) {
 		return -1;
 	}
@@ -102,7 +102,7 @@ int binarizer_get_bit(BINARIZER binarizer) {
 	return process_filters(binarizer->filters, bit | pos << 8) & 1;
 }
 
-void binarizer_put_bit(BINARIZER binarizer, int bit) {
+void binarizer_put_bit(BINARIZER_PTR binarizer, int bit) {
 	if (bit < 0) {
 		return;
 	}
@@ -122,7 +122,7 @@ void binarizer_put_bit(BINARIZER binarizer, int bit) {
 	}
 }
 
-void binarizer_add_filter(BINARIZER binarizer, BINARIZER_FILTER filter,
+void binarizer_add_filter(BINARIZER_PTR binarizer, BINARIZER_FILTER filter,
 		void * data) {
 	struct binarizer_filters * filters = malloc(sizeof(binarizer->filters));
 	filters->filter = filter;

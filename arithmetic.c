@@ -7,8 +7,8 @@
 
 #define RESERVED_SPACE 8
 
-ARITHMETIC arithmetic_open(BINARIZER binarizer, ARITHMETIC_MODEL model) {
-	ARITHMETIC arithmetic = calloc(1, sizeof(*arithmetic));
+ARITHMETIC_PTR arithmetic_open(BINARIZER_PTR binarizer, ARITHMETIC_MODEL model) {
+	ARITHMETIC_PTR arithmetic = calloc(1, sizeof(*arithmetic));
 	arithmetic->binarizer = binarizer;
 
 	arithmetic->bits = sizeof(arithmetic_type) * 8;
@@ -27,7 +27,7 @@ ARITHMETIC arithmetic_open(BINARIZER binarizer, ARITHMETIC_MODEL model) {
 	return arithmetic;
 }
 
-void write(ARITHMETIC arithmetic, int bit) {
+void write(ARITHMETIC_PTR arithmetic, int bit) {
 	// prevent writing of trailing zeros
 	if (bit == 0) {
 		arithmetic->zeros++;
@@ -40,14 +40,14 @@ void write(ARITHMETIC arithmetic, int bit) {
 	binarizer_put_bit(arithmetic->binarizer, 1);
 }
 
-void output(ARITHMETIC arithmetic, int bit) {
+void output(ARITHMETIC_PTR arithmetic, int bit) {
 	write(arithmetic, bit);
 	for (; arithmetic->pending > 0; arithmetic->pending--) {
 		write(arithmetic, 1 - bit);
 	}
 }
 
-void arithmetic_close(ARITHMETIC arithmetic) {
+void arithmetic_close(ARITHMETIC_PTR arithmetic) {
 	if (arithmetic->symbols > 0) {
 		// output pending
 		unsigned char space[RESERVED_SPACE];
@@ -68,7 +68,7 @@ void arithmetic_close(ARITHMETIC arithmetic) {
 	free(arithmetic);
 }
 
-void arithmetic_encode_symbol(ARITHMETIC arithmetic, int symbol) {
+void arithmetic_encode_symbol(ARITHMETIC_PTR arithmetic, int symbol) {
 	if (arithmetic->symbols == 0) {
 		arithmetic->position = fasta_reserve_space(arithmetic->binarizer->fasta,
 		RESERVED_SPACE);
@@ -101,7 +101,7 @@ void arithmetic_encode_symbol(ARITHMETIC arithmetic, int symbol) {
 	arithmetic->symbols++;
 }
 
-int arithmetic_decode_symbol(ARITHMETIC arithmetic) {
+int arithmetic_decode_symbol(ARITHMETIC_PTR arithmetic) {
 	if (arithmetic->symbols == 0) {
 		if (arithmetic->position > 0) {
 			// position can never be zero because of how fasta is organized
@@ -109,7 +109,7 @@ int arithmetic_decode_symbol(ARITHMETIC arithmetic) {
 			return -1;
 		}
 
-		FASTA fasta = arithmetic->binarizer->fasta;
+		FASTA_PTR fasta = arithmetic->binarizer->fasta;
 		if (!fasta_has_sequence(fasta)) {
 			return -1;
 		}

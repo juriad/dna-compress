@@ -22,7 +22,7 @@ struct arithmetic_model {
 typedef struct arithmetic_model ARITHMETIC_MODEL;
 
 struct arithmetic {
-	BINARIZER binarizer;
+	BINARIZER_PTR binarizer;
 	off_t position;
 	uint64_t symbols;
 
@@ -38,14 +38,12 @@ struct arithmetic {
 	arithmetic_type b2;
 };
 
-typedef struct arithmetic * ARITHMETIC;
+typedef struct arithmetic * ARITHMETIC_PTR;
 
-ARITHMETIC arithmetic_open(BINARIZER binarizer, ARITHMETIC_MODEL model);
-void arithmetic_close(ARITHMETIC arithmetic);
+ARITHMETIC_PTR arithmetic_open(BINARIZER_PTR binarizer, ARITHMETIC_MODEL model);
+void arithmetic_close(ARITHMETIC_PTR arithmetic);
 
-void arithmetic_encode_symbol(ARITHMETIC arithmetic, int symbol);
-int arithmetic_decode_symbol(ARITHMETIC arithmetic);
-
-void arithmetic_set_model(struct arithmetic_model model);
+void arithmetic_encode_symbol(ARITHMETIC_PTR arithmetic, int symbol);
+int arithmetic_decode_symbol(ARITHMETIC_PTR arithmetic);
 
 #endif /* ARITHMETIC_H_ */

@@ -26,7 +26,7 @@ struct binarizer_filters {
 };
 
 struct binarizer {
-	FASTA fasta;
+	FASTA_PTR fasta;
 	BINARIZER_ALPHABET alphabet;
 	struct binarizer_filters * filters;
 
@@ -35,15 +35,15 @@ struct binarizer {
 	char length;
 };
 
-typedef struct binarizer * BINARIZER;
+typedef struct binarizer * BINARIZER_PTR;
 
-BINARIZER binarizer_open(FASTA fasta, BINARIZER_ALPHABET alphabet);
-void binarizer_close(BINARIZER binarizer);
+BINARIZER_PTR binarizer_open(FASTA_PTR fasta, BINARIZER_ALPHABET alphabet);
+void binarizer_close(BINARIZER_PTR binarizer);
 
-int binarizer_get_bit(BINARIZER binarizer);
-void binarizer_put_bit(BINARIZER binarizer, int bit);
+int binarizer_get_bit(BINARIZER_PTR binarizer);
+void binarizer_put_bit(BINARIZER_PTR binarizer, int bit);
 
-void binarizer_add_filter(BINARIZER binarizer, BINARIZER_FILTER filter,
+void binarizer_add_filter(BINARIZER_PTR binarizer, BINARIZER_FILTER filter,
 		void * data);
 
 #endif /* BINARIZER_H_ */

@@ -4,8 +4,7 @@
 #include <stdint.h>
 
 struct counter_data {
-	int min;
-	int max;
+	int range;
 
 	uint64_t * stats;
 	uint64_t count;
@@ -13,9 +12,11 @@ struct counter_data {
 
 typedef struct counter_data COUNTER_DATA;
 
-void predictor_init_data(COUNTER_DATA * data, int min, int max);
-void predictor_destroy_data(COUNTER_DATA * data);
+void counter_init_data(COUNTER_DATA * data, int range);
+void counter_destroy_data(COUNTER_DATA * data);
 
 int counter_filter(int number, void * data);
+
+uint64_t counter_get(COUNTER_DATA * data, int number);
 
 #endif /* COUNTER_H_ */

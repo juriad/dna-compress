@@ -4,14 +4,14 @@
 
 #include "fasta.h"
 
-#define LINE_WIDTH 80
+#define LINE_WIDTH (256*256)
 #define RESERVED_SPACE 8
 
 #define EOL 10
 #define EOL2 13
 
-FASTA fasta_open(char * filename, int flags) {
-	FASTA fasta = calloc(1, sizeof(*fasta));
+FASTA_PTR fasta_open(char * filename, int flags) {
+	FASTA_PTR fasta = calloc(1, sizeof(*fasta));
 	fasta->flags = flags;
 	fasta->file = fopen(filename, FASTA_IS_READING(fasta) ? "r" : "w+");
 
@@ -21,7 +21,7 @@ FASTA fasta_open(char * filename, int flags) {
 	return fasta;
 }
 
-void close_sequence(FASTA fasta) {
+void close_sequence(FASTA_PTR fasta) {
 	if (FASTA_IS_WRITING(fasta)) {
 		if (fasta->curSeqSize > 0) {
 			// write size
@@ -43,14 +43,14 @@ void close_sequence(FASTA fasta) {
 	}
 }
 
-void fasta_close(FASTA fasta) {
+void fasta_close(FASTA_PTR fasta) {
 	close_sequence(fasta);
 
 	fclose(fasta->file);
 	free(fasta);
 }
 
-int get_char(FASTA fasta) {
+int get_char(FASTA_PTR fasta) {
 	int c;
 	if (FASTA_IS_PLAIN(fasta)) {
 		do {
@@ -79,7 +79,7 @@ int get_char(FASTA fasta) {
 	return c;
 }
 
-void fasta_fill_info(FASTA fasta) {
+void fasta_fill_info(FASTA_PTR fasta) {
 	if (fasta->curSeq == -2) {
 		return;
 	}
@@ -152,7 +152,7 @@ void fasta_fill_info(FASTA fasta) {
 	}
 }
 
-char * fasta_get_name(FASTA fasta) {
+char * fasta_get_name(FASTA_PTR fasta) {
 	if (FASTA_IS_WRITING(fasta)) {
 		return NULL;
 	}
@@ -184,7 +184,7 @@ char * fasta_get_name(FASTA fasta) {
 	return name;
 }
 
-int fasta_seek_name(FASTA fasta, int delta) {
+int fasta_seek_name(FASTA_PTR fasta, int delta) {
 	if (FASTA_IS_WRITING(fasta)) {
 		return -1;
 	}
@@ -237,7 +237,7 @@ int fasta_seek_name(FASTA fasta, int delta) {
 	return fasta->curSeq;
 }
 
-void fasta_put_name(FASTA fasta, char * name) {
+void fasta_put_name(FASTA_PTR fasta, char * name) {
 	if (FASTA_IS_READING(fasta)) {
 		return;
 	}
@@ -253,7 +253,7 @@ void fasta_put_name(FASTA fasta, char * name) {
 	fasta->curSeqSize = 0;
 }
 
-int fasta_has_sequence(FASTA fasta) {
+int fasta_has_sequence(FASTA_PTR fasta) {
 	if (FASTA_IS_WRITING(fasta)) {
 		return 0;
 	}
@@ -268,7 +268,7 @@ int fasta_has_sequence(FASTA fasta) {
 	return fasta->curSeqSize > 0;
 }
 
-void fasta_rewind(FASTA fasta) {
+void fasta_rewind(FASTA_PTR fasta) {
 	if (FASTA_IS_WRITING(fasta)) {
 		return;
 	}
@@ -284,7 +284,7 @@ void fasta_rewind(FASTA fasta) {
 	fseeko(fasta->file, fasta->curSeqPos + fasta->curChar, SEEK_SET);
 }
 
-int fasta_get_char(FASTA fasta) {
+int fasta_get_char(FASTA_PTR fasta) {
 	if (FASTA_IS_WRITING(fasta)) {
 		return -1;
 	}
@@ -325,7 +325,7 @@ int fasta_get_char(FASTA fasta) {
 	return c | (len << 8);
 }
 
-void put_char(FASTA fasta, int c) {
+void put_char(FASTA_PTR fasta, int c) {
 	off_t pos = ftello(fasta->file);
 	// it is time for a new line
 	if ((pos - fasta->curSeqPos) % (LINE_WIDTH + 1) == LINE_WIDTH) {
@@ -334,7 +334,7 @@ void put_char(FASTA fasta, int c) {
 	fputc(c, fasta->file);
 }
 
-void fasta_put_char(FASTA fasta, int c) {
+void fasta_put_char(FASTA_PTR fasta, int c) {
 	if (FASTA_IS_READING(fasta)) {
 		return;
 	}
@@ -357,7 +357,7 @@ void fasta_put_char(FASTA fasta, int c) {
 	fasta->curSeqSize += len;
 }
 
-off_t fasta_reserve_space(FASTA fasta, int size) {
+off_t fasta_reserve_space(FASTA_PTR fasta, int size) {
 	if (FASTA_IS_PLAIN(fasta)) {
 		return -1;
 	}
@@ -388,7 +388,7 @@ off_t fasta_reserve_space(FASTA fasta, int size) {
 	return pos;
 }
 
-void fasta_read_space(FASTA fasta, off_t position, int size,
+void fasta_read_space(FASTA_PTR fasta, off_t position, int size,
 		unsigned char * space) {
 	if (FASTA_IS_WRITING(fasta) || FASTA_IS_PLAIN(fasta)) {
 		return;
@@ -402,7 +402,7 @@ void fasta_read_space(FASTA fasta, off_t position, int size,
 	fseeko(fasta->file, pos, SEEK_SET);
 }
 
-void fasta_write_space(FASTA fasta, off_t position, int size,
+void fasta_write_space(FASTA_PTR fasta, off_t position, int size,
 		unsigned char * space) {
 	if (FASTA_IS_READING(fasta) || FASTA_IS_PLAIN(fasta)) {
 		return;
