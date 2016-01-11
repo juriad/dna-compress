@@ -1,0 +1,306 @@
+\documentclass[hyperref={colorlinks=true}]{beamer}
+\usepackage[utf8]{inputenc}
+
+\usepackage{graphicx} % Allows including images
+%\usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
+\usepackage{pdfpages}
+\usepackage{hyperref}
+\usepackage{epstopdf}
+
+\usepackage[english]{babel}
+\usepackage{ae}
+
+%\usefonttheme{professionalfonts} % using non standard fonts for beamer
+%\usefonttheme{serif} % default family is serif
+%\usepackage{fontspec}
+%\setmainfont{Liberation Serif}
+
+
+\mode<presentation> {
+\usetheme{Frankfurt}
+}
+
+\setbeamersize{text margin left=3em,text margin right=3em}
+
+% The short title appears at the bottom of every slide, the full title is only on the title page
+\title[DNA Compression]{Compression of DNA Using Arithmetic Coding and Prediction Filter}
+\author{Adam Juraszek} % Your name
+\institute[MFF UK] % Your institution as it will appear on the bottom of every slide, may be shorthand to save space
+{
+Matematicko-fyzikální fakulta UK \\
+\medskip
+\textit{juriad@gmail.com} % Your email address
+}
+\date{\today} % Date, can be changed to a custom date
+
+\begin{document}
+
+\begin{frame}
+\titlepage % Print the title page as the first slide
+\end{frame}
+
+%\begin{frame}
+%\frametitle{Overview} % Table of contents slide, comment this block out to remove it
+%\tableofcontents % Throughout your presentation, if you choose to use \section{} and \subsection{} commands, these will automatically be printed on this slide as an overview of your presentation
+%\end{frame}
+
+\section{DNA-residual} 
+
+\begin{frame}
+\frametitle{Overview}
+
+Algorithm:
+\begin{enumerate}
+	\item Convert bases from ASCII to 2-bit representation.
+	\item Predict the next bit based on recent history.
+	\item XOR the prediction with the actual bit into an error bit.
+	\item Encode the error sequence using arithmetic coder.
+\end{enumerate}
+The same operations in opposite order are performed when decoding the sequence. 
+
+\end{frame}
+
+\begin{frame}
+\frametitle{2-bit Representation}
+
+\begin{itemize}
+	\item DNA contains 4 bases (A, C, G, T), therefore 2 bits per base are sufficient.
+	\item The mapping is chosen in a way so that the complementary bases sum up to 11 in binary.
+		$$ A=00, C=01, G=10, T=11 $$
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{FIR Filter}
+
+\begin{itemize}
+	\item FIR stands for Finite Impulse Response
+	\item Comes from signal processing.
+	\item Usually used for smoothening measured data.
+	\item FIR filter of order $n$ uses only close $n$ consecutive values of an input sequence.
+	\item There are standard techniques for designing such filters.
+	\item Based on convolution, Fourier transformation, least squares, pseudoinverse matrix.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Predictor}
+
+\begin{itemize}
+	\item FIR filter is used for prediction of the next bit.
+	\item Filter is learned in the first pass through the sequence and its parameters are stored for the decoder.
+	\item The sign of the predicted real value is interpreted as the predicted bit.
+	\item The authors used FIR filter of order 10.
+\end{itemize}	
+
+\end{frame}
+
+\begin{frame}
+\frametitle{XOR}
+
+\begin{itemize}
+	\item XOR computes the difference between the actual and the predicted bit.
+	\item If the sequence is ``nice'', the predictor is often correct.
+	\item It is expected that the error sequence is biased towards containing a lot of zeros.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Arithmetic Coder}
+
+\begin{itemize}
+	\item Encodes a sequence of zeros and ones into an optimal space according to the entropy of the sequence.
+	\item The coder is adaptive -- it learns the probabilities of zeros and ones.
+	\item The adaptation is expected to converge quickly and to exploit the local conditions.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Benchmark}
+
+\begin{itemize}
+	\item There is a set of 10 or 11 standard benchmark sequences:
+		\begin{itemize}
+			\item complete genome of 2 mitochondria,
+			\item complete genome of 2 chloroplasts,
+			\item 5 sequences from human,
+			\item complete genome of 2 viruses.
+		\end{itemize}
+	\item DNA-residual was compared with other compression algorithms.
+\end{itemize}
+
+\begin{figure}
+\centering
+\begin{tabular}{|l||c|}
+\hline
+Algorithm & Average bits/base ratio \\ \hline
+\hline
+Bio2 & 1.7706 \\ \hline
+Gen2 & 1.7350 \\ \hline
+DNA Compress & 1.7200 \\ \hline
+DNA Pack & 1.6920 \\ \hline
+CTW-LZ & 1.7320 \\ \hline
+Ge-NML & 1.6980 \\ \hline
+\hline
+DNA-residual & 1.031 \\ \hline
+\end{tabular}
+\end{figure}
+
+\end{frame}
+
+\section{Implementation}
+
+\begin{frame}[fragile]
+\frametitle{File Format}
+
+\begin{itemize}
+	\item FASTA was chosen as format of the original and the compressed sequences.
+	\item The name of a compressed sequence starts with \verb|<| instead of \verb|>|.
+	\item The sequence begins with 8 bytes encoding its length in bits followed by the sequence itself.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Predictor}
+
+\begin{itemize}
+	\item FIR filter is too complex -- it requires a lot of background knowledge.
+	\item FIR filter was replaced by a simple adaptive predictor which counts occurrences of long suffixes.
+	\item The prediction is based on whether the longest suffix was more often followed by zero or one.
+	\item Numbers of occurrences of up to 22 bits of history are kept in simple arrays.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Arithmetic Coder}
+
+\begin{itemize}
+	\item The authors don't mention parameters of the adaptive model of the arithmetic coder.
+	\item I used exponential degradation of probabilities with half-life of 30 bits.
+	\item This should enable the arithmetic coder to adapt quickly to local distribution of zeros and ones.
+	\item The distribution depends on quality of prediction; I expect it to be ``good'' in areas which encode a gene.
+	\item The coder stores the number of encoded symbols (bits) in the first 8 bytes of the sequence.
+\end{itemize}
+
+\end{frame}
+
+\section{Results}
+
+\begin{frame}
+\frametitle{Benchmark}
+
+Comparison of my implementation with the simple predictor to previously mentioned algorithms.
+
+\begin{figure}
+\centering
+\begin{tabular}{|l||c|}
+\hline
+Algorithm & Average bits/base ratio \\ \hline
+\hline
+Bio2 & 1.7706 \\ \hline
+Gen2 & 1.7350 \\ \hline
+DNA Compress & 1.7200 \\ \hline
+DNA Pack & 1.6920 \\ \hline
+CTW-LZ & 1.7320 \\ \hline
+Ge-NML & 1.6980 \\ \hline
+\hline
+DNA-residual & 1.031 \\ \hline
+\hline
+\textbf{My implementation} & \textbf{1.9225} \\ \hline
+\end{tabular}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{We need to go bigger!}
+
+\begin{itemize}
+	\item Downloaded complete genome of:
+		\begin{itemize}
+			\item Caenorhabditis remanei (nematode, hlístice)
+			\item Fugu rubripes (pufferfish, čtverzubec)
+			\item Homo sapiens (human, člověk)
+			\item Mus musculus (mouse, myš)
+			\item Saccharomyces cerevisiae (yeast, kvasinka)
+		\end{itemize}
+	\item Each gzipped file contains one sequence in FASTA format.
+	\item Contains symbols \verb|N| for unknown bases, removed; repeats marked by lower case letters, unified.
+	\item 178 sequences of lengths ranging from about 2,000 to 358,000,000 bases of:
+		\begin{itemize}
+			\item whole DNA sequences,
+			\item chromosomes,
+			\item subsequences of (un)known chromosomes,
+			\item mitochondrial DNA.
+		\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Real Sequences}
+
+\begin{itemize}
+	\item Total 6,172,950,690 bytes compressed into 1,386,777,656 with average bits/base ratio being 1.7972. Spared about 156,460,016 bytes against 2-bit representation.
+	\item Ratio ranging from 0.5382 bits/base for \verb|homo-sapiens-chrUn_gl000226.fa| up to 2.0619 for \verb|mus-musculus-chr4_JH584295_random.fa|.
+	\item Mitochondrial DNA of Vertebrata is hard to compress; ratios are 1.9847 (mouse), 1.9871 (human), 1.9873 (fish).
+	\item Sex chromosomes of mouse are the most compressible thereof: Y with ratio 1.0620, X with ratio 1.6642.
+	\item Similarly are sex chromosomes of human: Y with ratio 1.7620 (2nd best), X with ratio 1.7777 (4th best).
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Statistics from Predictor and Coder}
+
+\begin{itemize}
+	\item Input sequences contain 50.04 percent of zeros, error sequences contain 60.62 percent of zeros (on average).
+	\item The distribution of augmentation corresponds closely to compressibility of the sequences.
+	\item Modeled probabilities of zeros and ones in the arithmetic coder were printed out every 10,000 iterations.
+	\item $P(0) < P(1)$ is rare. Sometimes the ratio is superb ($40.8353 : 1.9475$).
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Conclusion}
+
+\begin{itemize}
+	\item My implementation is not very good on the benchmark sequences.
+	\item It gives surprisingly better results on whole genomes proving that prediction is not worthless.
+	\item I didn't compare it with other algorithms though.
+\end{itemize}
+
+\end{frame}
+
+\section{Better Models}
+
+\begin{frame}
+\frametitle{Predictor Revisited}
+
+\begin{itemize}
+	\item FIR filter allowed only prediction of a single bit because only the sign of the predicted value was utilized.
+	\item I don't use FIR filter, I don't need to restrict alphabet to binary, therefore an alphabet of bases A, C, G, T is possible.
+	\item XOR can be replaced by difference computed modulo 4.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Modeling Probability}
+
+\begin{itemize}
+	\item Simple counting predictor can be used for modeling probability distributions of the next base.
+	\item Which means that we don't need sequence biased towards zeros, and so no XOR/diff operation.
+	\item Predictor is moved inside the arithmetic coder.
+\end{itemize}
+
+\end{frame}
+
+\end{document}
